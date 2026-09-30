@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS FEVER: The Sisyphus Kernel</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    font-family: 'Press Start 2P', monospace;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a2e;
+    color: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  #game-container {
+    width: 1000px;
+    height: 720px;
+    background: #ffd500;
+    border: 8px solid #000;
+    box-shadow: 10px 10px 0px #000;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Header Window Bar */
+  .window-bar {
+    background: #000;
+    color: #fff;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .window-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid #000;
+  }
+  .dot-red { background: #ff5f56; }
+  .dot-yellow { background: #ffbd2e; }
+  .dot-green { background: #27c93f; }
+
+  /* Main Game Canvas & Split View */
+  #main-viewport {
+    display: flex;
+    height: 280px;
+    border-bottom: 6px solid #000;
+    background: linear-gradient(180deg, #ff9a00 0%, #ff5200 100%);
+    position: relative;
+  }
+  canvas#sisyphusCanvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Status Bar overlay */
+  .status-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .hud-badge {
+    background: #fff;
+    border: 3px solid #000;
+    padding: 6px 12px;
+    font-size: 10px;
+    box-shadow: 4px 4px 0px #000;
+  }
+
+  /* Workstation & Order Panel */
+  #action-panel {
+    flex: 1;
+    background: #fbf8eb;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    gap: 10px;
+    position: relative;
+  }
+
+  /* Current Ticket Banner */
+  #ticket-card {
+    background: #fff;
+    border: 4px solid #000;
+    box-shadow: 4px 4px 0px #000;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ticket-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #444;
+  }
+  .ticket-title {
+    font-size: 12px;
+    color: #d90429;
+    font-weight: bold;
+  }
+  .recipe-steps {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .step-pill {
+    background: #eee;
+    border: 2px solid #000;
+    padding: 4px 8px;
+    font-size: 9px;
+    border-radius: 4px;
+  }
+  .step-pill.done {
+    background: #2ec4b6;
+    color: #fff;
+    text-decoration: line-through;
+  }
+  .step-pill.current {
+    background: #ff9f1c;
+    color: #000;
+    animation: pulse 0.8s infinite alternate;
+  }
+  @keyframes pulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.05); }
+  }
+
+  /* Timer Bar */
+  .timer-container {
+    width: 100%;
+    height: 14px;
+    background: #ddd;
+    border: 2px solid #000;
+    overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%;
+    background: #2ec4b6;
+    width: 100%;
+    transition: width 0.1s linear, background-color 0.3s;
+  }
+
+  /* OS Workstation Grid */
+  .stations-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    flex: 1;
+  }
+  .station-btn {
+    background: #ffd500;
+    border: 3px solid #000;
+    box-shadow: 3px 3px 0px #000;
+    padding: 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: transform 0.05s, box-shadow 0.05s;
+  }
+  .station-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #000;
+  }
+  .station-btn span.icon { font-size: 16px; }
+  .station-btn span.label { font-size: 14px; text-align: center; font-family: 'VT323', monospace; font-weight: bold; }
+
+  /* Overlays / Screens */
+  .screen-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 213, 0, 0.98);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    text-align: center;
+  }
+  .title-logo {
+    font-size: 28px;
+    color: #000;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0px #fff;
+  }
+  .btn-main {
+    background: #000;
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 4px 4px 0px #fff;
+    margin: 8px;
+  }
+  .btn-main:hover {
+    background: #ff0055;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <!-- Top OS Window Bar -->
+  <div class="window-bar">
+    <div class="window-dots">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+    <div>OS FEVER v1.3.2 - SISYPHUS KERNEL</div>
+    <div>SYS_MONITOR: ACTIVE</div>
+  </div>
+
+  <!-- Sisyphus Canvas Viewport -->
+  <div id="main-viewport">
+    <canvas id="sisyphusCanvas" width="1000" height="280"></canvas>
+    
+    <div class="status-overlay">
+      <div class="hud-badge" id="hud-mode">MODE: LEVEL 1</div>
+      <div class="hud-badge" id="hud-multiplier">REWARD: 1.0x</div>
+      <div class="hud-badge" id="hud-score">CASH: $0</div>
+    </div>
+  </div>
+
+  <!-- Lower Action & Workstation Tycoon Area -->
+  <div id="action-panel">
+    
+    <!-- Current Incoming Order Ticket -->
+    <div id="ticket-card">
+      <div class="ticket-header">
+        <span id="ticket-id">SYSTEM REQUEST #101</span>
+        <span id="ticket-time-label">TIME: 15.0s</span>
+      </div>
+      <div class="ticket-title" id="ticket-desc">User launches Browser App</div>
+      
+      <!-- Timer -->
+      <div class="timer-container">
+        <div class="timer-fill" id="timer-bar"></div>
+      </div>
+
+      <!-- Execution Sequence required -->
+      <div style="font-size: 8px; margin-top: 4px;">REQUIRED KERNEL PIPELINE:</div>
+      <div class="recipe-steps" id="recipe-steps">
+        <!-- Dynamic steps added here -->
+      </div>
+    </div>
+
+    <!-- 9 Workstations Grid -->
+    <div class="stations-grid">
+      <button class="station-btn" onclick="processStep('MEM')">
+        <span class="icon">🧠</span>
+        <span class="label">1. MEMORY MANAGEMENT</span>
+      </button>
+      <button class="station-btn" onclick="processStep('ACC')">
+        <span class="icon">🧮</span>
+        <span class="label">2. ACCOUNTING</span>
+      </button>
+      <button class="station-btn" onclick="processStep('FS')">
+        <span class="icon">📁</span>
+        <span class="label">3. FILE SYSTEM</span>
+      </button>
+      <button class="station-btn" onclick="processStep('DEV')">
+        <span class="icon">🖨️</span>
+        <span class="label">4. DEVICE MANAGEMENT</span>
+      </button>
+      <button class="station-btn" onclick="processStep('SEC')">
+        <span class="icon">🛡️</span>
+        <span class="label">5. SECURITY</span>
+      </button>
+      <button class="station-btn" onclick="processStep('SCHED')">
+        <span class="icon">⚡</span>
+        <span class="label">6. SCHEDULING</span>
+      </button>
+      <button class="station-btn" onclick="processStep('GUI')">
+        <span class="icon">🖥️</span>
+        <span class="label">7. GRAPHICAL UI</span>
+      </button>
+      <button class="station-btn" onclick="processStep('VIRT')">
+        <span class="icon">📦</span>
+        <span class="label">8. VIRTUALIZATION</span>
+      </button>
+      <button class="station-btn" onclick="processStep('NET')">
+        <span class="icon">🌐</span>
+        <span class="label">9. NETWORKING</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Start Screen Modal -->
+  <div class="screen-overlay" id="start-screen">
+    <div class="title-logo">OS FEVER 🪨</div>
+    <p style="font-size: 10px; max-width: 600px; line-height: 1.6; margin-bottom: 20px;">
+      Meet <b>Yowy</b>[cite: 1]! While users click around, Yowy holds up the heavy OS Boulder up the mountain[cite: 1].
+      Serve system requests by clicking the right OS modules in order before time runs out!
+      If you fail, Yowy stumbles down the mountain[cite: 1]!
+    </p>
+    <div>
+      <button class="btn-main" onclick="startGame('level')">PLAY LEVEL MODE (1-10)</button>
+      <button class="btn-main" onclick="startGame('endless')">PLAY ENDLESS MODE</button>
+    </div>
+  </div>
+
+  <!-- Game Over Screen Modal -->
+  <div class="screen-overlay" id="gameover-screen" style="display: none;">
+    <div class="title-logo" style="color: #d90429;">KERNEL PANIC! 💥</div>
+    <p style="font-size: 10px; margin-bottom: 20px;" id="gameover-desc">
+      Yowy couldn't hold the boulder and fell off the mountain slope[cite: 1]!
+    </p>
+    <div style="font-size: 14px; margin-bottom: 20px;" id="final-stats">CASH EARNED: $0</div>
+    <button class="btn-main" onclick="returnToMenu()">MAIN MENU</button>
+  </div>
+</div>
+
+<script>
+  // --- GAME KERNEL & SYSTEM DATABASE ---
+  const WORKSTATIONS = {
+    MEM: { name: "Memory Management", code: "MEM" },
+    ACC: { name: "Accounting", code: "ACC" },
+    FS: { name: "File System", code: "FS" },
+    DEV: { name: "Device Mgmt", code: "DEV" },
+    SEC: { name: "Security", code: "SEC" },
+    SCHED: { name: "Scheduling", code: "SCHED" },
+    GUI: { name: "GUI", code: "GUI" },
+    VIRT: { name: "Virtualization", code: "VIRT" },
+    NET: { name: "Networking", code: "NET" }
+  };
+
+  const REQUEST_TEMPLATES = [
+    { title: "User opens Chrome Browser", pipeline: ["SEC", "MEM", "SCHED", "NET", "GUI"] },
+    { title: "User prints PDF Document", pipeline: ["FS", "SEC", "DEV", "SCHED"] },
+    { title: "Cloud VM Instance Startup", pipeline: ["VIRT", "MEM", "NET", "ACC"] },
+    { title: "Saving Photo to Disk", pipeline: ["GUI", "SEC", "FS", "MEM"] },
+    { title: "User types Password", pipeline: ["GUI", "SEC", "SCHED"] },
+    { title: "Streaming 4K Video", pipeline: ["NET", "MEM", "SCHED", "GUI", "ACC"] },
+    { title: "Plugged USB Flash Drive", pipeline: ["DEV", "FS", "SEC", "GUI"] }
+  ];
+
+  // Game State
+  let gameMode = 'level';
+  let currentLevel = 1;
+  let totalCash = 0;
+  let slopeProgress = 50; 
+  let yowyVelocity = 0;
+  let activeTicket = null;
+  let ticketTimeLeft = 0;
+  let ticketTotalTime = 10;
+  let currentStepIndex = 0;
+  let isRunning = false;
+  let requestsCompletedInLevel = 0;
+
+  // Canvas Setup
+  const canvas = document.getElementById('sisyphusCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // Loop
+  let lastTime = performance.now();
+  function gameLoop(now) {
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    if (isRunning) {
+      updateGame(dt);
+    }
+    renderSisyphusScene();
+    requestAnimationFrame(gameLoop);
+  }
+  requestAnimationFrame(gameLoop);
+
+  function startGame(mode) {
+    gameMode = mode;
+    currentLevel = 1;
+    totalCash = 0;
+    slopeProgress = 50;
+    requestsCompletedInLevel = 0;
+    isRunning = true;
+
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+
+    spawnTicket();
+  }
+
+  function spawnTicket() {
+    let mult = getMultiplier();
+    let baseTime = Math.max(12 - currentLevel * 0.8, 4);
+    if (gameMode === 'endless') {
+      baseTime = Math.max(10 - Math.floor(requestsCompletedInLevel / 3) * 0.5, 3);
+    }
+
+    let template = REQUEST_TEMPLATES[Math.floor(Math.random() * REQUEST_TEMPLATES.length)];
+    activeTicket = {
+      title: template.title,
+      pipeline: [...template.pipeline],
+      reward: Math.floor(100 * mult)
+    };
+
+    currentStepIndex = 0;
+    ticketTotalTime = baseTime;
+    ticketTimeLeft = baseTime;
+
+    updateUI();
+  }
+
+  function getMultiplier() {
+    return gameMode === 'level' ? currentLevel : 1 + Math.floor(requestsCompletedInLevel / 5) * 0.5;
+  }
+
+  function updateGame(dt) {
+    ticketTimeLeft -= dt;
+    if (ticketTimeLeft <= 0) {
+      ticketTimeLeft = 0;
+      onTaskFail("TIMEOUT! Yowy lost grip!");
+    }
+
+    if (yowyVelocity < 0) {
+      slopeProgress += yowyVelocity * dt;
+      yowyVelocity += 15 * dt;
+      if (yowyVelocity > 0) yowyVelocity = 0;
+    }
+
+    if (slopeProgress <= 0) {
+      triggerGameOver("Yowy fell off the steep mountain slope!");
+    }
+
+    updateUIBars();
+  }
+
+  function processStep(code) {
+    if (!isRunning || !activeTicket) return;
+
+    let targetCode = activeTicket.pipeline[currentStepIndex];
+    if (code === targetCode) {
+      currentStepIndex++;
+      if (currentStepIndex >= activeTicket.pipeline.length) {
+        onTaskSuccess();
+      } else {
+        updateUI();
+      }
+    } else {
+      onTaskFail("WRONG SEQUENCE! System crashed!");
+    }
+  }
+
+  function onTaskSuccess() {
+    totalCash += activeTicket.reward;
+    slopeProgress = Math.min(100, slopeProgress + 8);
+    requestsCompletedInLevel++;
+
+    if (gameMode === 'level' && requestsCompletedInLevel >= 5) {
+      if (currentLevel < 10) {
+        currentLevel++;
+        requestsCompletedInLevel = 0;
+      }
+    }
+
+    spawnTicket();
+  }
+
+  function onTaskFail(reason) {
+    yowyVelocity = -35; 
+    slopeProgress = Math.max(0, slopeProgress - 18);
+    
+    if (slopeProgress > 0) {
+      spawnTicket();
+    }
+  }
+
+  function triggerGameOver(reason) {
+    isRunning = false;
+    document.getElementById('gameover-desc').innerText = reason;
+    document.getElementById('final-stats').innerText = `TOTAL SYSTEM CASH: $${totalCash}`;
+    document.getElementById('gameover-screen').style.display = 'flex';
+  }
+
+  function returnToMenu() {
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+  }
+
+  function updateUI() {
+    document.getElementById('hud-mode').innerText = gameMode === 'level' ? `LEVEL ${currentLevel}` : `ENDLESS MODE`;
+    document.getElementById('hud-multiplier').innerText = `REWARD: ${getMultiplier().toFixed(1)}x`;
+    document.getElementById('hud-score').innerText = `CASH: $${totalCash}`;
+
+    if (activeTicket) {
+      document.getElementById('ticket-desc').innerText = activeTicket.title;
+      
+      let recipeContainer = document.getElementById('recipe-steps');
+      recipeContainer.innerHTML = '';
+      activeTicket.pipeline.forEach((stepCode, idx) => {
+        let pill = document.createElement('div');
+        pill.className = 'step-pill';
+        if (idx < currentStepIndex) pill.classList.add('done');
+        if (idx === currentStepIndex) pill.classList.add('current');
+        pill.innerText = `${idx + 1}. ${WORKSTATIONS[stepCode].name}`;
+        recipeContainer.appendChild(pill);
+      });
+    }
+  }
+
+  function updateUIBars() {
+    if (!activeTicket) return;
+    let pct = (ticketTimeLeft / ticketTotalTime) * 100;
+    let timerBar = document.getElementById('timer-bar');
+    timerBar.style.width = `${pct}%`;
+    if (pct < 30) {
+      timerBar.style.backgroundColor = '#d90429';
+    } else {
+      timerBar.style.backgroundColor = '#2ec4b6';
+    }
+    document.getElementById('ticket-time-label').innerText = `TIME: ${ticketTimeLeft.toFixed(1)}s`;
+  }
+
+  function renderSisyphusScene() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    skyGradient.addColorStop(0, '#ff7b00');
+    skyGradient.addColorStop(1, '#ffae00');
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height);
+    ctx.lineTo(canvas.width, 40);
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.fillStyle = '#6b2d5c';
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+
+    let minX = 120;
+    let maxX = canvas.width - 150;
+    let currentX = minX + (slopeProgress / 100) * (maxX - minX);
+    let slopeY = canvas.height - ((currentX / canvas.width) * (canvas.height - 40));
+
+    let boulderRadius = 45;
+    let boulderX = currentX + 35;
+    let boulderY = slopeY - boulderRadius + 10;
+
+    ctx.save();
+    ctx.translate(boulderX, boulderY);
+    ctx.fillStyle = '#8d99ae';
+    ctx.beginPath();
+    ctx.arc(0, 0, boulderRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-15, -10); ctx.lineTo(10, 15);
+    ctx.moveTo(5, -20); ctx.lineTo(-10, 20);
+    ctx.strokeStyle = '#2b2d42';
+    ctx.stroke();
+    ctx.restore();
+
+    let yowyX = currentX - 15;
+    let yowyY = slopeY - 30;
+
+    ctx.save();
+    ctx.translate(yowyX, yowyY);
+
+    if (yowyVelocity < 0) {
+      ctx.rotate(-0.3);
+    }
+
+    ctx.fillStyle = '#ffd500';
+    ctx.beginPath();
+    ctx.arc(0, 0, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#000';
+    ctx.stroke();
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(-8, -4, 5, 0, Math.PI * 2);
+    ctx.arc(8, -4, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    if (yowyVelocity < 0) {
+      ctx.arc(0, 10, 6, Math.PI, 0);
+    } else {
+      ctx.arc(0, 4, 6, 0, Math.PI);
+    }
+    ctx.fillStyle = '#d90429';
+    ctx.fill();
+
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(12, -10);
+    ctx.lineTo(32, -20);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+</script>
+</body>
+</html>
