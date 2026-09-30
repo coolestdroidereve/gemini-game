@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OS FEVER 3D: ADVANCED ADMIN & EXTENDED MAP</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    font-family: 'Press Start 2P', monospace;
+    touch-action: manipulation;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #050508;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    width: 960px;
+    height: 680px;
+    background: #000;
+    border: 6px solid #d90429;
+    box-shadow: 0px 0px 20px #d90429;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .crt-lines {
+    position: absolute; inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+    background-size: 100% 4px; pointer-events: none; z-index: 20;
+  }
+
+  /* 3D Viewport */
+  #viewport-3d {
+    width: 100%; height: 440px;
+    position: relative; background: #000;
+    cursor: pointer;
+  }
+  canvas#doomCanvas { width: 100%; height: 100%; image-rendering: pixelated; }
+
+  /* Radar & Extended Map */
+  #radar-box {
+    position: absolute; top: 10px; right: 10px;
+    width: 110px; height: 110px;
+    background: rgba(0, 0, 0, 0.85); border: 2px solid #00ff66;
+    z-index: 15; border-radius: 4px; pointer-events: none;
+  }
+  canvas#radarCanvas { width: 100%; height: 100%; }
+
+  #extended-map-overlay {
+    position: absolute; inset: 10px;
+    background: rgba(5, 10, 15, 0.95); border: 4px solid #00f5d4;
+    z-index: 90; display: none; flex-direction: column;
+    padding: 10px; align-items: center; justify-content: center;
+  }
+  canvas#extendedMapCanvas { width: 400px; height: 400px; border: 2px solid #00ff66; image-rendering: pixelated; }
+
+  /* Virtual D-PAD Controls */
+  #virtual-dpad {
+    position: absolute; bottom: 10px; left: 10px;
+    display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 40px);
+    gap: 4px; z-index: 18;
+  }
+  .dpad-btn {
+    background: rgba(217, 4, 41, 0.7); border: 2px solid #fff; color: #fff;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 14px; cursor: pointer; border-radius: 4px;
+  }
+  .dpad-btn:active { background: #ff2a4b; }
+
+  #btn-shoot {
+    position: absolute; bottom: 10px; right: 10px;
+    width: 100px; height: 75px; background: #00ff66; color: #000;
+    border: 3px solid #fff; font-size: 8px; font-weight: bold;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    cursor: pointer; z-index: 18; box-shadow: 2px 2px 0px #000;
+  }
+
+  /* Hotbar */
+  #hotbar {
+    position: absolute; top: 10px; left: 10px;
+    display: flex; gap: 8px; z-index: 18;
+  }
+  .hotbar-slot {
+    background: rgba(0, 0, 0, 0.8); border: 2px solid #fff;
+    padding: 6px; font-size: 8px; color: #fff; cursor: pointer;
+    border-radius: 4px; display: flex; align-items: center; gap: 4px;
+  }
+  .hotbar-slot:hover { border-color: #00ff66; }
+
+  /* Pause Button */
+  #btn-pause {
+    background: rgba(255, 189, 46, 0.9); color: #000; font-weight: bold;
+    border: 2px solid #fff; padding: 6px 10px; font-size: 8px; cursor: pointer;
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  }
+  #btn-pause:hover { background: #ff2a4b; color: #fff; }
+
+  /* Audio Button */
+  #btn-audio {
+    background: rgba(0, 245, 212, 0.9); color: #000; font-weight: bold;
+    border: 2px solid #fff; padding: 6px 10px; font-size: 8px; cursor: pointer;
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  }
+  #btn-audio:hover { background: #00ff66; }
+
+  /* Weapon & Crosshair */
+  #weapon {
+    position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%); width: 200px; height: 180px;
+    pointer-events: none; z-index: 10;
+  }
+  #crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); width: 16px; height: 16px;
+    pointer-events: none; z-index: 15;
+  }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00ff66; }
+  #crosshair::before { top: 7px; left: 0; width: 16px; height: 2px; }
+  #crosshair::after { top: 0; left: 7px; width: 2px; height: 16px; }
+
+  #cam-mode-tag {
+    position: absolute; top: 46px; left: 10px;
+    background: rgba(0,0,0,0.8); border: 1px solid #00ff66;
+    color: #00ff66; padding: 4px 8px; font-size: 7px; z-index: 15; pointer-events: none;
+  }
+
+  /* HUD */
+  #doom-hud {
+    height: 240px; background: #111116; border-top: 6px solid #333;
+    display: flex; padding: 10px; gap: 10px; z-index: 25;
+  }
+  .hud-block {
+    background: #1b1b22; border: 4px solid #444; padding: 8px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  #sisyphus-block { width: 210px; }
+  canvas#sisyphusMiniCanvas {
+    width: 100%; height: 100px; background: #2a1122; border: 2px solid #000;
+  }
+
+  #yowy-face-block {
+    width: 140px; align-items: center; justify-content: center;
+    background: #200000; border-color: #800000;
+  }
+  #yowy-face {
+    width: 60px; height: 60px; background: #ffd500; border-radius: 50%;
+    border: 4px solid #000; position: relative;
+  }
+
+  #ticket-block { flex: 1; }
+  .pipeline-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .pill {
+    background: #333; border: 2px solid #666; padding: 4px 6px;
+    font-size: 8px; color: #aaa;
+  }
+  .pill.active {
+    background: #ff0055; color: #fff; border-color: #fff;
+    animation: blink 0.5s infinite alternate;
+  }
+  .pill.done { background: #00b4d8; color: #fff; text-decoration: line-through; }
+  @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+  .hud-shop-btn {
+    background: #ffbd2e; color: #000; border: 2px solid #fff;
+    padding: 6px; font-size: 8px; cursor: pointer; font-weight: bold;
+    text-align: center;
+  }
+
+  /* Overlay Screens & Modals */
+  .screen-overlay {
+    position: absolute; inset: 0; background: rgba(10, 0, 0, 0.95);
+    z-index: 100; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; padding: 20px; text-align: center;
+  }
+  .title-logo { font-size: 26px; color: #d90429; text-shadow: 4px 4px 0px #000; margin-bottom: 10px; }
+  .btn-doom {
+    background: #d90429; color: #fff; border: 4px solid #fff;
+    padding: 10px 18px; font-size: 8px; cursor: pointer; margin: 6px;
+  }
+
+  /* Modals */
+  .modal-popup {
+    position: absolute; inset: 15px; background: #0a101d; border: 4px solid #00b4d8;
+    z-index: 110; display: none; flex-direction: column; padding: 15px;
+  }
+  .trail-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    overflow-y: auto; margin-top: 10px; flex: 1; padding: 5px;
+  }
+  .trail-card {
+    background: #141f36; border: 3px solid #334e68; padding: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    cursor: pointer; border-radius: 4px;
+  }
+  .trail-card.equipped { border-color: #ffbd2e; }
+  .trail-preview {
+    width: 100%; height: 30px; border-radius: 4px; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Settings & Admin Popups */
+  #admin-modal, #settings-modal {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 380px; background: #0b0914; border: 4px solid #d90429;
+    padding: 15px; z-index: 150; display: none; flex-direction: column; gap: 10px;
+  }
+  input[type="text"], input[type="password"] {
+    background: #111; border: 2px solid #fff; color: #00ff66; padding: 8px; font-size: 10px;
+  }
+
+  /* Star Wars Crawl Screen */
+  #star-wars-credits {
+    position: absolute; inset: 0; background: #000; z-index: 200;
+    display: none; overflow: hidden; perspective: 300px;
+  }
+  .starfield {
+    position: absolute; width: 100%; height: 100%;
+    background: radial-gradient(2px 2px at 20px 30px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 150px 150px, #fff, rgba(0,0,0,0));
+    background-repeat: repeat; background-size: 300px 300px;
+  }
+  .crawl-wrapper {
+    position: absolute; width: 80%; left: 10%; bottom: 0;
+    height: 100%; transform-origin: 50% 100%;
+    transform: rotateX(25deg); text-align: center; color: #ffbd2e;
+    font-size: 14px; line-height: 2.2;
+  }
+  .crawl-content {
+    position: absolute; top: 100%; width: 100%;
+    animation: crawl 35s linear infinite;
+  }
+  @keyframes crawl {
+    0% { top: 100%; }
+    100% { top: -200%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Audio Element -->
+<audio id="bgm-audio" loop preload="auto">
+  <source src="https://v.ftcdn.net/05/81/43/45/700_F_581434524_EaY3ECl3pWJ5B1P7Q4vR83fC24U4Y6iU.mp4" type="audio/mp4">
+</audio>
+
+<div id="game-container">
+  <div class="crt-lines"></div>
+
+  <!-- 3D Viewport -->
+  <div id="viewport-3d">
+    <canvas id="doomCanvas" width="640" height="360"></canvas>
+    
+    <!-- Hotbar items -->
+    <div id="hotbar">
+      <div id="btn-pause" onclick="togglePause()">⏸️️ PAUSE [P]</div>
+      <div id="btn-audio" onclick="toggleAudio()">🔊 BGM: ON</div>
+      <div class="hotbar-slot" onclick="useAlmondWater()">
+        🧪 ALMOND WATER: <span id="cnt-almond">0</span>
+      </div>
+      <div class="hotbar-slot" onclick="useIceTexture()">
+        🧊 ICE TEXTURE: <span id="cnt-ice">0</span>
+      </div>
+    </div>
+
+    <!-- Camera Mode -->
+    <div id="cam-mode-tag">CAM: 1ST PERSON [KEY '5']</div>
+
+    <!-- Mini Radar -->
+    <div id="radar-box">
+      <canvas id="radarCanvas" width="110" height="110"></canvas>
+    </div>
+
+    <!-- Extended Map Overlay -->
+    <div id="extended-map-overlay">
+      <div style="font-size: 10px; color: #00f5d4; margin-bottom: 8px;">EXTENDED MAP OVERLAY (PRESS '1' TO CLOSE)</div>
+      <canvas id="extendedMapCanvas" width="360" height="360"></canvas>
+      <div style="font-size: 7px; color: #aaa; margin-top: 6px;">[GREEN = PLAYER] | [RED/CYAN = ANOMALY MODULES]</div>
+    </div>
+
+    <!-- Virtual D-PAD -->
+    <div id="virtual-dpad">
+      <div></div>
+      <div class="dpad-btn" id="btn-up">▲</div>
+      <div></div>
+      <div class="dpad-btn" id="btn-left">◀</div>
+      <div class="dpad-btn" id="btn-down">▼</div>
+      <div class="dpad-btn" id="btn-right">▶</div>
+    </div>
+
+    <div id="btn-shoot">
+      <div>DISRUPT</div>
+      <div style="font-size: 6px; color: #000;">[ENTER / CLICK]</div>
+    </div>
+
+    <div id="crosshair"></div>
+    <svg id="weapon" viewBox="0 0 100 100">
+      <path d="M35,100 L45,50 L55,50 L65,100 Z" fill="#444" stroke="#000" stroke-width="2"/>
+      <rect x="46" y="30" width="8" height="25" fill="#222" stroke="#000" stroke-width="2"/>
+      <circle id="muzzle-flash" cx="50" cy="25" r="15" fill="#00ff66" opacity="0"/>
+    </svg>
+  </div>
+
+  <!-- DOOM HUD -->
+  <div id="doom-hud">
+    <div class="hud-block" id="sisyphus-block">
+      <div style="font-size: 8px; color: #ffbd2e;" id="slope-status-label">SISYPHUS SLOPE</div>
+      <canvas id="sisyphusMiniCanvas" width="200" height="100"></canvas>
+      <div style="font-size: 8px; text-align: center;" id="hud-slope-pct">SLOPE: 50%</div>
+    </div>
+
+    <div class="hud-block" id="yowy-face-block">
+      <div style="font-size: 8px; color: #fff; margin-bottom: 4px;">KERNEL YOWY</div>
+      <div id="yowy-face">
+        <div style="position: absolute; top: 16px; left: 12px; display: flex; gap: 12px;">
+          <div style="width: 8px; height: 8px; background: #000; border-radius: 50%;"></div>
+          <div style="width: 8px; height: 8px; background: #000; border-radius: 50%;"></div>
+        </div>
+        <div style="position: absolute; bottom: 12px; left: 16px; width: 20px; height: 8px; background: #d90429; border-radius: 0 0 8px 8px;"></div>
+      </div>
+      <div style="font-size: 8px; color: #00ff66; margin-top: 6px;" id="hud-health">HEALTH: OK</div>
+    </div>
+
+    <div class="hud-block" id="ticket-block">
+      <div style="display: flex; justify-content: space-between; font-size: 9px;">
+        <span id="hud-mode">MODE: CAMPAIGN L1</span>
+        <span id="hud-score" style="color: #00ff66;">CASH: $0</span>
+      </div>
+      <div style="font-size: 9px; color: #ffbd2e; margin: 4px 0;" id="ticket-title">REQUEST: Open Web Browser</div>
+      <div style="font-size: 7px; color: #aaa;">SEARCH MEMORY FOR ANOMALY:</div>
+      <div class="pipeline-pills" id="pipeline-pills"></div>
+      
+      <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;">
+        <div class="hud-shop-btn" onclick="toggleShop(true)">🛍️ SHOP</div>
+        <div class="hud-shop-btn" style="background:#00b4d8; color:#fff;" onclick="toggleExtendedMap()">🗺️ MAP [1]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Screen -->
+  <div class="screen-overlay" id="start-screen">
+    <div class="title-logo">OS FEVER 3D 🪨</div>
+    <div style="font-size: 9px; color: #aaa; margin-bottom: 15px;">CHOOSE GAMEPLAY MODE</div>
+    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+      <button class="btn-doom" style="background: #00b4d8;" onclick="startMode('campaign')">10-LEVEL CAMPAIGN</button>
+      <button class="btn-doom" style="background: #ff0055;" onclick="startMode('endless')">ENDLESS SURVIVAL</button>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-doom" style="background: #ffbd2e; color: #000;" onclick="toggleSettingsModal(true)">⚙ SETTINGS</button>
+      <button class="btn-doom" style="background: #a000ff;" onclick="toggleAdminAuth(true)">🔐 ADMIN PANEL</button>
+    </div>
+  </div>
+
+  <!-- Pause Overlay Screen -->
+  <div class="screen-overlay" id="pause-screen" style="display: none; background: rgba(5, 5, 10, 0.85);">
+    <div class="title-logo" style="color: #ffbd2e;">GAME PAUSED ⏸️</div>
+    <div style="font-size: 8px; color: #aaa; margin-bottom: 20px;">SYSTEM PROCESSES SUSPENDED</div>
+    <div style="display: flex; flex-direction: column; gap: 10px; width: 220px;">
+      <button class="btn-doom" style="background: #00ff66; color: #000;" onclick="togglePause()">RESUME GAME</button>
+      <button class="btn-doom" style="background: #ffbd2e; color: #000;" onclick="toggleSettingsModal(true)">⚙ SETTINGS</button>
+      <button class="btn-doom" style="background: #d90429;" onclick="returnToMenuFromPause()">MAIN MENU</button>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal">
+    <div style="font-size: 10px; color: #ffbd2e; text-align: center;">GAME SETTINGS</div>
+    <div style="font-size: 8px; color: #fff; margin-top: 10px;">MOUSE SENSITIVITY:</div>
+    <input type="range" id="sensitivity-slider" min="0.5" max="3.0" step="0.1" value="1.5" style="width: 100%;">
+    <button class="btn-doom" onclick="toggleSettingsModal(false)">SAVE & CLOSE</button>
+  </div>
+
+  <!-- Admin Authentication Modal -->
+  <div id="admin-modal">
+    <div style="font-size: 10px; color: #ff0055; text-align: center;">ADMIN LOGIN</div>
+    <div style="font-size: 7px; color: #aaa;">ENTER ACCESS PASSWORD:</div>
+    <input type="password" id="admin-pass-input" placeholder="Password...">
+    <div style="display: flex; justify-content: space-between;">
+      <button class="btn-doom" style="background: #00ff66; color: #000;" onclick="loginAdmin()">LOGIN</button>
+      <button class="btn-doom" onclick="toggleAdminAuth(false)">CANCEL</button>
+    </div>
+
+    <div id="admin-controls" style="display: none; flex-direction: column; gap: 6px; margin-top: 10px; border-top: 1px solid #444; padding-top: 8px;">
+      <div style="font-size: 8px; color: #00ff66;">ADMIN PERKS GRANTED:</div>
+      <button class="btn-doom" style="background: #00b4d8; font-size: 6px;" onclick="adminSkipLevel()">SKIP CURRENT LEVEL</button>
+      <button class="btn-doom" style="background: #ff8800; font-size: 6px;" onclick="adminUnlockTrails()">UNLOCK ALL TRAILS</button>
+      <button class="btn-doom" style="background: #ff00aa; font-size: 6px;" onclick="adminInfiniteResources()">UNLIMITED CASH & SUPPLIES</button>
+    </div>
+  </div>
+
+  <!-- Level Completed Screen -->
+  <div class="screen-overlay" id="level-complete-screen" style="display: none;">
+    <div class="title-logo" style="color: #00ff66;">LEVEL CLEARED! 🎉</div>
+    <p style="font-size: 9px; color: #aaa; margin-bottom: 15px;">
+      Buy supplies or equip new color trails before advancing!
+    </p>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-doom" style="background: #ffbd2e; color: #000;" onclick="toggleShop(true)">🛍️ SHOP</button>
+      <button class="btn-doom" onclick="nextLevel()">NEXT LEVEL ▶</button>
+    </div>
+  </div>
+
+  <!-- Shop Modal -->
+  <div class="modal-popup" id="trail-shop-modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00b4d8; padding-bottom: 8px;">
+      <span style="font-size: 10px; color: #00ff66;">SUPPLY & TRAIL SHOP</span>
+      <span style="font-size: 9px; color: #ffbd2e;" id="shop-cash-display">CASH: $0</span>
+    </div>
+
+    <!-- Consumables -->
+    <div style="display: flex; gap: 10px; margin-top: 8px; border-bottom: 1px solid #333; padding-bottom: 8px;">
+      <div style="background: #141f36; padding: 6px; flex: 1; border: 1px solid #00b4d8; border-radius: 4px;">
+        <div style="font-size: 7px; color: #ffbd2e;">🧪 ALMOND WATER ($150)</div>
+        <div style="font-size: 6px; color: #aaa; margin: 4px 0;">Restores slope back to 100%!</div>
+        <button class="btn-doom" style="font-size: 6px; padding: 4px;" onclick="buyItem('almond')">BUY</button>
+      </div>
+      <div style="background: #141f36; padding: 6px; flex: 1; border: 1px solid #00b4d8; border-radius: 4px;">
+        <div style="font-size: 7px; color: #00f5d4;">🧊 ICE TEXTURE ($200)</div>
+        <div style="font-size: 6px; color: #aaa; margin: 4px 0;">Freezes slope decay for 5s!</div>
+        <button class="btn-doom" style="font-size: 6px; padding: 4px;" onclick="buyItem('ice')">BUY</button>
+      </div>
+    </div>
+
+    <div class="trail-grid" id="trail-grid-container"></div>
+    <button class="btn-doom" style="margin-top: 10px;" onclick="toggleShop(false)">CLOSE SHOP</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="screen-overlay" id="gameover-screen" style="display: none;">
+    <div class="title-logo" style="color: #ff0055;">KERNEL PANIC 💥</div>
+    <div style="font-size: 10px; color: #00ff66; margin-bottom: 15px;" id="final-cash">TOTAL CASH: $0</div>
+    <div>
+      <button class="btn-doom" onclick="returnToMenu()">MAIN MENU</button>
+      <button class="btn-doom" style="background:#ffbd2e; color:#000;" onclick="showStarWarsCredits()">VIEW CREDITS</button>
+    </div>
+  </div>
+
+  <!-- Star Wars Crawl Screen -->
+  <div id="star-wars-credits">
+    <div class="starfield"></div>
+    <div class="crawl-wrapper">
+      <div class="crawl-content" id="crawl-text"></div>
+    </div>
+    <button class="btn-doom" style="position: absolute; bottom: 20px; right: 20px; z-index: 210;" onclick="closeCredits()">CLOSE CREDITS</button>
+  </div>
+</div>
+
+<script>
+  const bgmAudio = document.getElementById('bgm-audio');
+  let isMuted = false;
+  let audioCtx = null;
+  let synthLooping = false;
+
+  // Star Wars Cantina Synthesizer Fallback
+  const cantinaNotes = [
+    { n: 293.66, d: 0.15 }, { n: 392.00, d: 0.15 }, { n: 293.66, d: 0.15 }, { n: 392.00, d: 0.15 },
+    { n: 293.66, d: 0.15 }, { n: 392.00, d: 0.15 }, { n: 293.66, d: 0.15 }, { n: 370.00, d: 0.30 },
+    { n: 329.63, d: 0.30 }, { n: 293.66, d: 0.15 }, { n: 392.00, d: 0.15 }, { n: 293.66, d: 0.15 },
+    { n: 392.00, d: 0.15 }, { n: 293.66, d: 0.15 }, { n: 392.00, d: 0.15 }, { n: 293.66, d: 0.15 },
+    { n: 349.23, d: 0.30 }, { n: 329.63, d: 0.30 }
+  ];
+
+  function startSynthBGM() {
+    if (synthLooping || isMuted) return;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    synthLooping = true;
+    let noteIndex = 0;
+
+    function playNextNote() {
+      if (!synthLooping || isMuted) return;
+      let item = cantinaNotes[noteIndex];
+      
+      let osc = audioCtx.createOscillator();
+      let gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = item.n;
+
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + item.d);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + item.d);
+
+      noteIndex = (noteIndex + 1) % cantinaNotes.length;
+      setTimeout(playNextNote, item.d * 1000);
+    }
+
+    playNextNote();
+  }
+
+  function playBGM() {
+    if (isMuted) return;
+    bgmAudio.play().catch(() => {
+      startSynthBGM();
+    });
+  }
+
+  function startAudioOnInteraction() {
+    playBGM();
+  }
+  window.addEventListener('click', startAudioOnInteraction);
+  window.addEventListener('keydown', startAudioOnInteraction);
+
+  function toggleAudio() {
+    isMuted = !isMuted;
+    bgmAudio.muted = isMuted;
+    document.getElementById('btn-audio').innerText = isMuted ? "🔇 BGM: OFF" : "🔊 BGM: ON";
+    if (!isMuted) {
+      playBGM();
+    } else {
+      synthLooping = false;
+    }
+  }
+
+  const SHOP_TRAILS = [
+    { id: 'blue', name: 'BLUE NEON', price: 0, color: '#0077ff', wallRgb: [0, 80, 200] },
+    { id: 'green', name: 'GREEN MATRIX', price: 100, color: '#00ff00', wallRgb: [0, 180, 50] },
+    { id: 'white', name: 'WHITE GLOW', price: 200, color: '#ffffff', wallRgb: [180, 180, 180] },
+    { id: 'red', name: 'RED ALERT', price: 300, color: '#ff0033', wallRgb: [200, 20, 20] },
+    { id: 'orange', name: 'AMBER ORANGE', price: 400, color: '#ff8800', wallRgb: [220, 100, 0] },
+    { id: 'pink', name: 'CYBER PINK', price: 500, color: '#ff00aa', wallRgb: [220, 0, 140] },
+    { id: 'purple', name: 'VOID PURPLE', price: 600, color: '#a000ff', wallRgb: [140, 0, 220] },
+    { id: 'fire', name: 'FIRE GRADIENT', price: 800, color: '#ff3300', wallRgb: [220, 50, 0] },
+    { id: 'cyan', name: 'ICE CYAN', price: 1000, color: '#00f5d4', wallRgb: [0, 200, 180] },
+    { id: 'rainbow', name: 'RAINBOW LEVEL 10', price: 1500, color: '#ff0000', wallRgb: [255, 255, 255] }
+  ];
+
+  const MOTIVATIONAL_QUOTES = [
+    "EVERY BUG RESOLVED IS A STEP TOWARDS HARMONY.",
+    "THE SISYPHUS BOULDER NEVER STOPS, BUT NEITHER DO YOU.",
+    "KEEP WALKING THE TRAILS OF REASON AND CREATIVITY.",
+    "THE KERNEL IS HARD, BUT YOUR WILL IS STRONGER."
+  ];
+
+  const OS_MODULES = [
+    { code: 'MEM', color: '#3a86ff' }, { code: 'ACC', color: '#ff006e' },
+    { code: 'FS', color: '#8338ec' }, { code: 'DEV', color: '#fb5607' },
+    { code: 'SEC', color: '#ffbe0b' }, { code: 'SCHED', color: '#00f5d4' },
+    { code: 'GUI', color: '#7b2cbf' }, { code: 'NET', color: '#f15bb5' }
+  ];
+
+  const PIPELINE_TEMPLATES = [
+    { title: "User opens Web Browser", pipeline: ["SEC", "MEM", "SCHED", "NET", "GUI"] },
+    { title: "Print Document Request", pipeline: ["FS", "SEC", "DEV", "SCHED"] },
+    { title: "Save Photo File to Disk", pipeline: ["GUI", "SEC", "FS", "MEM"] }
+  ];
+
+  const MAP_SIZE = 24;
+  const MAP = [
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,0,1,0,1,1,1,1,1,1,0,0,1,0,1,1,1,1,0,1,
+    1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,
+    1,0,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,0,1,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,1,1,0,1,0,1,1,1,1,0,1,1,1,1,1,1,0,0,1,0,1,1,1,
+    1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,0,1,0,1,1,0,0,1,1,1,0,1,0,1,1,1,1,0,1,
+    1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,
+    1,0,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1,
+    1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1,0,1,
+    1,0,1,1,1,1,1,0,1,0,1,0,1,0,1,1,1,1,1,1,0,1,0,1,
+    1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1,
+    1,1,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,
+    1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,0,1,
+    1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,
+    1,0,1,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,1,0,1,1,1,1,
+    1,0,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  ];
+
+  // Game state variables
+  let px = 11.5, py = 11.5;
+  let dirX = -1, dirY = 0;
+  let planeX = 0, planeY = 0.66;
+  let pitch = 0; // Vertical look angle offset
+
+  let mouseSensitivity = 1.5;
+  let isPointerLocked = false;
+  let gameMode = 'campaign';
+  let currentLevel = 1;
+  let levelTicketsCleared = 0;
+
+  let isThirdPerson = false;
+  let isExtendedMapOpen = false;
+  let isPaused = false;
+  let totalCash = 250;
+  let countAlmond = 1;
+  let countIce = 1;
+  let isIceActive = false;
+  let iceTimer = 0;
+
+  let equippedTrail = 'blue';
+  let ownedTrails = ['blue'];
+  let trailParticles = [];
+
+  let slopeProgress = 50;
+  let activeTicket = null;
+  let currentStepIdx = 0;
+  let isRunning = false;
+  let keys = {};
+  let dpad = { up: false, down: false, left: false, right: false };
+  let sprites = [];
+
+  const canvas3D = document.getElementById('doomCanvas');
+  const viewport3D = document.getElementById('viewport-3d');
+  const ctx3D = canvas3D.getContext('2d');
+  const radarCanvas = document.getElementById('radarCanvas');
+  const radarCtx = radarCanvas.getContext('2d');
+  const miniCanvas = document.getElementById('sisyphusMiniCanvas');
+  const miniCtx = miniCanvas.getContext('2d');
+  const extMapCanvas = document.getElementById('extendedMapCanvas');
+  const extMapCtx = extMapCanvas.getContext('2d');
+
+  // --- Pointer Lock & Mouse Look Setup ---
+  viewport3D.addEventListener('click', (e) => {
+    // Avoid re-locking when clicking hotbar controls directly
+    if (e.target.closest('#hotbar') || e.target.closest('#virtual-dpad') || e.target.closest('#btn-shoot')) return;
+    if (isRunning && !isPaused) {
+      canvas3D.requestPointerLock();
+    }
+  });
+
+  document.addEventListener('pointerlockchange', () => {
+    isPointerLocked = (document.pointerLockElement === canvas3D);
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isPointerLocked || !isRunning || isPaused) return;
+
+    let sens = mouseSensitivity * 0.0015;
+    rotatePlayer(-e.movementX * sens);
+
+    // Pitch angle clamping (Vertical look)
+    pitch -= e.movementY * sens * 120;
+    pitch = Math.max(-120, Math.min(120, pitch));
+  });
+
+  // --- Input Listeners ---
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    keys[e.code] = true;
+
+    if (e.key === '5') {
+      isThirdPerson = !isThirdPerson;
+      document.getElementById('weapon').style.display = isThirdPerson ? 'none' : 'block';
+      document.getElementById('cam-mode-tag').innerText = isThirdPerson ? "CAM: 3RD PERSON [KEY '5']" : "CAM: 1ST PERSON [KEY '5']";
+    }
+    if (e.key === '1') {
+      toggleExtendedMap();
+    }
+    if (e.key.toLowerCase() === 'p' || e.key === 'Escape') {
+      togglePause();
+    }
+    if (e.key === 'Enter') {
+      shoot();
+    }
+  });
+
+  window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+    keys[e.code] = false;
+  });
+
+  canvas3D.addEventListener('click', () => {
+    if (isPointerLocked) {
+      shoot();
+    }
+  });
+
+  const bindDPad = (id, key) => {
+    let btn = document.getElementById(id);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); dpad[key] = true; });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); dpad[key] = false; });
+    btn.addEventListener('mousedown', () => dpad[key] = true);
+    btn.addEventListener('mouseup', () => dpad[key] = false);
+  };
+  bindDPad('btn-up', 'up');
+  bindDPad('btn-down', 'down');
+  bindDPad('btn-left', 'left');
+  bindDPad('btn-right', 'right');
+
+  document.getElementById('btn-shoot').addEventListener('click', shoot);
+
+  function togglePause() {
+    if (!isRunning && !isPaused) return;
+    isPaused = !isPaused;
+    if (isPaused && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+    document.getElementById('pause-screen').style.display = isPaused ? 'flex' : 'none';
+    document.getElementById('btn-pause').innerText = isPaused ? "▶ RESUME [P]" : "⏸ PAUSE [P]";
+  }
+
+  function returnToMenuFromPause() {
+    isPaused = false;
+    isRunning = false;
+    if (document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('pause-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+  }
+
+  function rotatePlayer(rotSpeed) {
+    let oldDirX = dirX;
+    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+    let oldPlaneX = planeX;
+    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+  }
+
+  function toggleExtendedMap() {
+    if (isPaused) return;
+    isExtendedMapOpen = !isExtendedMapOpen;
+    document.getElementById('extended-map-overlay').style.display = isExtendedMapOpen ? 'flex' : 'none';
+    if (isExtendedMapOpen) renderExtendedMap();
+  }
+
+  function startMode(mode) {
+    playBGM();
+    gameMode = mode;
+    currentLevel = 1;
+    levelTicketsCleared = 0;
+    slopeProgress = 50;
+    px = 11.5; py = 11.5;
+    dirX = -1; dirY = 0;
+    planeX = 0; planeY = 0.66;
+    pitch = 0;
+    isRunning = true;
+    isPaused = false;
+
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('pause-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('level-complete-screen').style.display = 'none';
+
+    spawnMapEnemies();
+    spawnNewTicket();
+    updateUI();
+  }
+
+  function spawnMapEnemies() {
+    sprites = [];
+    let count = 0;
+    while (count < 18) {
+      let rx = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+      let ry = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+      if (MAP[ry * MAP_SIZE + rx] === 0) {
+        let mod = OS_MODULES[count % OS_MODULES.length];
+        sprites.push({ x: rx + 0.5, y: ry + 0.5, code: mod.code, color: mod.color });
+        count++;
+      }
+    }
+  }
+
+  function spawnNewTicket() {
+    let t = PIPELINE_TEMPLATES[Math.floor(Math.random() * PIPELINE_TEMPLATES.length)];
+    activeTicket = { title: t.title, pipeline: [...t.pipeline], reward: 200 };
+    currentStepIdx = 0;
+    updateUI();
+  }
+
+  function useAlmondWater() {
+    if (countAlmond > 0 && isRunning && !isPaused) {
+      if (countAlmond !== Infinity) countAlmond--;
+      slopeProgress = 100;
+      updateUI();
+    }
+  }
+
+  function useIceTexture() {
+    if (countIce > 0 && isRunning && !isPaused) {
+      if (countIce !== Infinity) countIce--;
+      isIceActive = true;
+      iceTimer = 5.0;
+      document.getElementById('slope-status-label').innerText = "FROZEN 🧊";
+      updateUI();
+    }
+  }
+
+  function shoot() {
+    if (!isRunning || isPaused) return;
+
+    let flash = document.getElementById('muzzle-flash');
+    flash.setAttribute('opacity', '1');
+    setTimeout(() => flash.setAttribute('opacity', '0'), 80);
+
+    let hitSprite = null, minDistance = 999;
+    let invDet = 1.0 / (planeX * dirY - dirX * planeY);
+
+    sprites.forEach(sprite => {
+      let spriteX = sprite.x - px, spriteY = sprite.y - py;
+      let transformX = invDet * (dirY * spriteX - dirX * spriteY);
+      let transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+      if (transformY > 0) {
+        let spriteScreenX = Math.floor((640 / 2) * (1 + transformX / transformY));
+        if (Math.abs(spriteScreenX - 320) < 60 && transformY < minDistance) {
+          minDistance = transformY;
+          hitSprite = sprite;
+        }
+      }
+    });
+
+    if (hitSprite) {
+      let expectedCode = activeTicket.pipeline[currentStepIdx];
+      if (hitSprite.code === expectedCode) {
+        currentStepIdx++;
+        slopeProgress = Math.min(100, slopeProgress + 10);
+        if (currentStepIdx >= activeTicket.pipeline.length) {
+          totalCash += activeTicket.reward;
+          levelTicketsCleared++;
+
+          if (gameMode === 'campaign' && levelTicketsCleared >= 2) {
+            pauseForNextLevel();
+          } else {
+            spawnNewTicket();
+          }
+        } else {
+          updateUI();
+        }
+      } else {
+        slopeProgress -= 15;
+      }
+    }
+  }
+
+  function pauseForNextLevel() {
+    isRunning = false;
+    if (document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('level-complete-screen').style.display = 'flex';
+  }
+
+  function nextLevel() {
+    currentLevel++;
+    if (currentLevel > 10) {
+      showStarWarsCredits();
+      return;
+    }
+    levelTicketsCleared = 0;
+    slopeProgress = 60;
+    document.getElementById('level-complete-screen').style.display = 'none';
+    isRunning = true;
+    spawnNewTicket();
+  }
+
+  let lastFrameTime = performance.now();
+  function gameLoop(now) {
+    let dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+
+    if (isRunning && !isPaused) {
+      updateMovement(dt);
+
+      if (isIceActive) {
+        iceTimer -= dt;
+        if (iceTimer <= 0) {
+          isIceActive = false;
+          document.getElementById('slope-status-label').innerText = "SISYPHUS SLOPE";
+        }
+      } else {
+        slopeProgress -= dt * (2.0 + currentLevel * 0.3);
+      }
+
+      if (slopeProgress <= 0) {
+        slopeProgress = 0;
+        isRunning = false;
+        if (document.pointerLockElement) document.exitPointerLock();
+        document.getElementById('gameover-screen').style.display = 'flex';
+        document.getElementById('final-cash').innerText = `TOTAL CASH: $${totalCash}`;
+      }
+      document.getElementById('hud-slope-pct').innerText = `SLOPE: ${Math.floor(slopeProgress)}%`;
+    }
+
+    render3D();
+    renderRadar();
+    renderSisyphusMini();
+    if (isExtendedMapOpen) renderExtendedMap();
+
+    requestAnimationFrame(gameLoop);
+  }
+  requestAnimationFrame(gameLoop);
+
+  function updateMovement(dt) {
+    let moveSpeed = dt * 4.0;
+    let rotSpeed = dt * 2.0 * mouseSensitivity;
+
+    let fwd = keys['w'] || dpad.up;
+    let bwd = keys['s'] || dpad.down;
+    let turnL = keys['a'] || keys['ArrowLeft'] || dpad.left;
+    let turnR = keys['d'] || keys['ArrowRight'] || dpad.right;
+
+    // Arrow keys camera look controls
+    if (keys['ArrowLeft']) rotatePlayer(rotSpeed);
+    if (keys['ArrowRight']) rotatePlayer(-rotSpeed);
+    if (keys['ArrowUp']) pitch = Math.min(120, pitch + 120 * dt * mouseSensitivity);
+    if (keys['ArrowDown']) pitch = Math.max(-120, pitch - 120 * dt * mouseSensitivity);
+
+    // Keyboard rotation if not turning with mouse
+    if (turnL && !keys['ArrowLeft']) rotatePlayer(rotSpeed);
+    if (turnR && !keys['ArrowRight']) rotatePlayer(-rotSpeed);
+
+    let moveX = 0, moveY = 0;
+    if (fwd) { moveX += dirX * moveSpeed; moveY += dirY * moveSpeed; }
+    if (bwd) { moveX -= dirX * moveSpeed; moveY -= dirY * moveSpeed; }
+
+    let buf = 0.25;
+    if (moveX !== 0 || moveY !== 0) {
+      if (MAP[Math.floor(py) * MAP_SIZE + Math.floor(px + moveX + Math.sign(moveX)*buf)] === 0) px += moveX;
+      if (MAP[Math.floor(py + moveY + Math.sign(moveY)*buf) * MAP_SIZE + Math.floor(px)] === 0) py += moveY;
+
+      if (Math.random() < 0.6) {
+        let trailObj = SHOP_TRAILS.find(t => t.id === equippedTrail);
+        trailParticles.push({
+          x: px, y: py,
+          color: trailObj ? trailObj.color : '#0077ff',
+          life: 1.0
+        });
+      }
+    }
+
+    for (let i = trailParticles.length - 1; i >= 0; i--) {
+      trailParticles[i].life -= dt * 1.5;
+      if (trailParticles[i].life <= 0) trailParticles.splice(i, 1);
+    }
+  }
+
+  function render3D() {
+    let w = canvas3D.width, h = canvas3D.height;
+    let horizonOffset = Math.floor(pitch);
+
+    ctx3D.fillStyle = '#111'; ctx3D.fillRect(0, 0, w, h / 2 + horizonOffset);
+    ctx3D.fillStyle = '#222'; ctx3D.fillRect(0, h / 2 + horizonOffset, w, h / 2 - horizonOffset);
+
+    let camPx = px, camPy = py;
+    if (isThirdPerson) {
+      camPx = px - dirX * 1.5;
+      camPy = py - dirY * 1.5;
+    }
+
+    let palette = SHOP_TRAILS[(currentLevel - 1) % SHOP_TRAILS.length];
+    let baseRgb = palette.wallRgb;
+
+    let zBuffer = new Array(w);
+    for (let x = 0; x < w; x++) {
+      let cameraX = 2 * x / w - 1;
+      let rayDirX = dirX + planeX * cameraX, rayDirY = dirY + planeY * cameraX;
+      let mapX = Math.floor(camPx), mapY = Math.floor(camPy);
+
+      let deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+      let stepX = rayDirX < 0 ? -1 : 1, sideDistX = rayDirX < 0 ? (camPx - mapX) * deltaDistX : (mapX + 1 - camPx) * deltaDistX;
+      let stepY = rayDirY < 0 ? -1 : 1, sideDistY = rayDirY < 0 ? (camPy - mapY) * deltaDistY : (mapY + 1 - camPy) * deltaDistY;
+
+      let hit = 0, side = 0;
+      while (hit === 0) {
+        if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+        else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+        if (MAP[mapY * MAP_SIZE + mapX] > 0) hit = 1;
+      }
+
+      let perpWallDist = side === 0 ? (mapX - camPx + (1 - stepX) / 2) / rayDirX : (mapY - camPy + (1 - stepY) / 2) / rayDirY;
+      zBuffer[x] = perpWallDist;
+
+      let lineHeight = Math.floor(h / perpWallDist);
+      let drawStart = -lineHeight / 2 + h / 2 + horizonOffset;
+      let drawEnd = lineHeight / 2 + h / 2 + horizonOffset;
+
+      let factor = Math.max(0, 1 - perpWallDist / 12);
+      if (currentLevel === 10) {
+        let r = Math.sin(x * 0.05) * 127 + 128;
+        let g = Math.sin(x * 0.05 + 2) * 127 + 128;
+        let b = Math.sin(x * 0.05 + 4) * 127 + 128;
+        ctx3D.fillStyle = `rgb(${r*factor},${g*factor},${b*factor})`;
+      } else {
+        let r = baseRgb[0] * factor * (side === 1 ? 0.6 : 1);
+        let g = baseRgb[1] * factor * (side === 1 ? 0.6 : 1);
+        let b = baseRgb[2] * factor * (side === 1 ? 0.6 : 1);
+        ctx3D.fillStyle = `rgb(${r},${g},${b})`;
+      }
+
+      ctx3D.fillRect(x, drawStart, 1, drawEnd - drawStart);
+    }
+
+    let invDet = 1.0 / (planeX * dirY - dirX * planeY);
+
+    // Render Trail particles
+    trailParticles.forEach(p => {
+      let pX = p.x - camPx, pY = p.y - camPy;
+      let transformX = invDet * (dirY * pX - dirX * pY);
+      let transformY = invDet * (-planeY * pX + planeX * pY);
+
+      if (transformY > 0) {
+        let pScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let pSize = Math.max(2, Math.floor(20 / transformY));
+        let pScreenY = Math.floor(h / 2 + (h / 2) / transformY) + horizonOffset;
+
+        if (pScreenX > 0 && pScreenX < w && transformY < zBuffer[pScreenX]) {
+          ctx3D.fillStyle = p.color;
+          ctx3D.globalAlpha = p.life;
+          ctx3D.fillRect(pScreenX - pSize/2, pScreenY, pSize, pSize);
+          ctx3D.globalAlpha = 1.0;
+        }
+      }
+    });
+
+    // Render Enemies
+    sprites.forEach(sprite => {
+      let spriteX = sprite.x - camPx, spriteY = sprite.y - camPy;
+      let transformX = invDet * (dirY * spriteX - dirX * spriteY);
+      let transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+      if (transformY > 0) {
+        let spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let spriteHeight = Math.abs(Math.floor(h / transformY));
+        let drawStartY = -spriteHeight / 2 + h / 2 + horizonOffset;
+        let spriteWidth = spriteHeight;
+        let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
+
+        if (drawStartX < w && drawStartX + spriteWidth > 0 && transformY < zBuffer[Math.floor(spriteScreenX)]) {
+          ctx3D.fillStyle = sprite.color;
+          ctx3D.fillRect(drawStartX, drawStartY, spriteWidth, spriteHeight);
+          ctx3D.fillStyle = '#fff';
+          ctx3D.font = '10px "Press Start 2P"';
+          ctx3D.fillText(sprite.code, drawStartX, drawStartY - 4);
+        }
+      }
+    });
+
+    // Render Avatar for 3rd Person view
+    if (isThirdPerson) {
+      let playerX = px - camPx, playerY = py - camPy;
+      let transformX = invDet * (dirY * playerX - dirX * playerY);
+      let transformY = invDet * (-planeY * playerX + planeX * playerY);
+
+      if (transformY > 0) {
+        let pScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let pHeight = Math.abs(Math.floor(h / transformY));
+        let pWidth = pHeight * 0.6;
+        let pStartY = -pHeight / 2 + h / 2 + pHeight * 0.2 + horizonOffset;
+
+        ctx3D.fillStyle = '#ffd500';
+        ctx3D.fillRect(pScreenX - pWidth/2, pStartY, pWidth, pHeight);
+        ctx3D.fillStyle = '#0077ff';
+        ctx3D.fillRect(pScreenX - pWidth/2, pStartY + pHeight*0.4, pWidth, pHeight*0.6);
+      }
+    }
+  }
+
+  function renderRadar() {
+    radarCtx.clearRect(0, 0, 110, 110);
+    let scale = 110 / MAP_SIZE;
+
+    radarCtx.fillStyle = '#224422';
+    for (let y = 0; y < MAP_SIZE; y++) {
+      for (let x = 0; x < MAP_SIZE; x++) {
+        if (MAP[y * MAP_SIZE + x] > 0) radarCtx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+
+    sprites.forEach(s => {
+      radarCtx.fillStyle = s.color;
+      radarCtx.fillRect(s.x * scale - 2, s.y * scale - 2, 4, 4);
+    });
+
+    radarCtx.fillStyle = '#00ff66';
+    radarCtx.beginPath();
+    radarCtx.arc(px * scale, py * scale, 3, 0, Math.PI * 2);
+    radarCtx.fill();
+  }
+
+  function renderExtendedMap() {
+    extMapCtx.clearRect(0, 0, extMapCanvas.width, extMapCanvas.height);
+    let tileSize = extMapCanvas.width / MAP_SIZE;
+
+    for (let y = 0; y < MAP_SIZE; y++) {
+      for (let x = 0; x < MAP_SIZE; x++) {
+        if (MAP[y * MAP_SIZE + x] > 0) {
+          extMapCtx.fillStyle = '#334455';
+          extMapCtx.fillRect(x * tileSize, y * tileSize, tileSize - 1, tileSize - 1);
+        } else {
+          extMapCtx.fillStyle = '#0a101d';
+          extMapCtx.fillRect(x * tileSize, y * tileSize, tileSize - 1, tileSize - 1);
+        }
+      }
+    }
+
+    sprites.forEach(s => {
+      extMapCtx.fillStyle = s.color;
+      extMapCtx.fillRect(s.x * tileSize - 4, s.y * tileSize - 4, 8, 8);
+      extMapCtx.fillStyle = '#fff';
+      extMapCtx.font = '5px "Press Start 2P"';
+      extMapCtx.fillText(s.code, s.x * tileSize - 6, s.y * tileSize - 5);
+    });
+
+    extMapCtx.fillStyle = '#00ff66';
+    extMapCtx.beginPath();
+    extMapCtx.arc(px * tileSize, py * tileSize, 5, 0, Math.PI * 2);
+    extMapCtx.fill();
+  }
+
+  function renderSisyphusMini() {
+    miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+    miniCtx.beginPath();
+    miniCtx.moveTo(0, miniCanvas.height);
+    miniCtx.lineTo(miniCanvas.width, 20);
+    miniCtx.lineTo(miniCanvas.width, miniCanvas.height);
+    miniCtx.fillStyle = isIceActive ? '#0077ff' : '#4a154b'; miniCtx.fill();
+
+    let cx = 20 + (slopeProgress / 100) * (miniCanvas.width - 50);
+    let cy = miniCanvas.height - ((cx / miniCanvas.width) * (miniCanvas.height - 20));
+
+    miniCtx.beginPath(); miniCtx.arc(cx + 15, cy - 15, 15, 0, Math.PI * 2);
+    miniCtx.fillStyle = '#8d99ae'; miniCtx.fill();
+
+    miniCtx.beginPath(); miniCtx.arc(cx - 5, cy - 8, 8, 0, Math.PI * 2);
+    miniCtx.fillStyle = '#ffd500'; miniCtx.fill();
+  }
+
+  function updateUI() {
+    document.getElementById('hud-mode').innerText = gameMode === 'campaign' ? `MODE: CAMPAIGN L${currentLevel}` : `MODE: ENDLESS`;
+    document.getElementById('hud-score').innerText = totalCash === Infinity ? `CASH: $∞` : `CASH: $${totalCash}`;
+    document.getElementById('cnt-almond').innerText = countAlmond === Infinity ? '∞' : countAlmond;
+    document.getElementById('cnt-ice').innerText = countIce === Infinity ? '∞' : countIce;
+    document.getElementById('ticket-title').innerText = activeTicket.title;
+
+    let pContainer = document.getElementById('pipeline-pills');
+    pContainer.innerHTML = '';
+    activeTicket.pipeline.forEach((code, idx) => {
+      let div = document.createElement('div');
+      div.className = 'pill';
+      if (idx < currentStepIdx) div.classList.add('done');
+      if (idx === currentStepIdx) div.classList.add('active');
+      div.innerText = `${idx + 1}.${code}`;
+      pContainer.appendChild(div);
+    });
+  }
+
+  function toggleShop(show) {
+    if (isPaused && show) return;
+    if (show && document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('trail-shop-modal').style.display = show ? 'flex' : 'none';
+    if (show) {
+      document.getElementById('shop-cash-display').innerText = totalCash === Infinity ? `CASH: $∞` : `CASH: $${totalCash}`;
+      renderShopGrid();
+    }
+  }
+
+  function buyItem(item) {
+    if (item === 'almond' && (totalCash >= 150 || totalCash === Infinity)) {
+      if (totalCash !== Infinity) totalCash -= 150;
+      if (countAlmond !== Infinity) countAlmond++;
+    } else if (item === 'ice' && (totalCash >= 200 || totalCash === Infinity)) {
+      if (totalCash !== Infinity) totalCash -= 200;
+      if (countIce !== Infinity) countIce++;
+    }
+    updateUI();
+    document.getElementById('shop-cash-display').innerText = totalCash === Infinity ? `CASH: $∞` : `CASH: $${totalCash}`;
+  }
+
+  function renderShopGrid() {
+    let grid = document.getElementById('trail-grid-container');
+    grid.innerHTML = '';
+
+    SHOP_TRAILS.forEach(trail => {
+      let owned = ownedTrails.includes(trail.id);
+      let equipped = equippedTrail === trail.id;
+
+      let card = document.createElement('div');
+      card.className = `trail-card ${equipped ? 'equipped' : ''}`;
+      card.innerHTML = `
+        <div class="trail-preview" style="background: ${trail.color};">
+          <span style="font-size:6px; color:#000; font-weight:bold;">${trail.name}</span>
+        </div>
+        <div style="font-size: 6px; margin-bottom: 4px; color: #ffbd2e;">
+          ${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : `$${trail.price}`}
+        </div>
+        <button class="btn-doom" style="padding: 4px 6px; font-size: 6px; margin:0;" onclick="buyOrEquipTrail('${trail.id}')">
+          ${owned ? (equipped ? 'IN USE' : 'EQUIP') : 'BUY'}
+        </button>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  function buyOrEquipTrail(trailId) {
+    let trail = SHOP_TRAILS.find(t => t.id === trailId);
+    if (ownedTrails.includes(trailId)) {
+      equippedTrail = trailId;
+    } else if (totalCash >= trail.price || totalCash === Infinity) {
+      if (totalCash !== Infinity) totalCash -= trail.price;
+      ownedTrails.push(trailId);
+      equippedTrail = trailId;
+    }
+    updateUI();
+    document.getElementById('shop-cash-display').innerText = totalCash === Infinity ? `CASH: $∞` : `CASH: $${totalCash}`;
+    renderShopGrid();
+  }
+
+  // Admin & Settings Modal Handlers
+  function toggleSettingsModal(show) {
+    if (show && document.pointerLockElement) document.exitPointerLock();
+    let modal = document.getElementById('settings-modal');
+    modal.style.display = show ? 'flex' : 'none';
+    if (!show) {
+      let val = parseFloat(document.getElementById('sensitivity-slider').value);
+      mouseSensitivity = val;
+    }
+  }
+
+  function toggleAdminAuth(show) {
+    if (show && document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('admin-modal').style.display = show ? 'flex' : 'none';
+  }
+
+  function loginAdmin() {
+    let pass = document.getElementById('admin-pass-input').value;
+    if (pass === 'csisfun') {
+      document.getElementById('admin-controls').style.display = 'flex';
+    } else {
+      alert("INCORRECT ADMIN PASSWORD!");
+    }
+  }
+
+  function adminSkipLevel() {
+    nextLevel();
+    alert("SKIPPED TO LEVEL " + currentLevel);
+  }
+
+  function adminUnlockTrails() {
+    ownedTrails = SHOP_TRAILS.map(t => t.id);
+    alert("ALL TRAILS UNLOCKED!");
+    updateUI();
+  }
+
+  function adminInfiniteResources() {
+    totalCash = Infinity;
+    countAlmond = Infinity;
+    countIce = Infinity;
+    alert("GRANTED INFINITE CASH & SUPPLIES!");
+    updateUI();
+  }
+
+  function showStarWarsCredits() {
+    let textElem = document.getElementById('crawl-text');
+    let quote = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+
+    textElem.innerHTML = `
+      <h1 style="color:#d90429;">OS FEVER 3D</h1>
+      <h2>EPISODE X: THE SISYPHUS PROTOCOL</h2>
+      <br><br>
+      <p>${quote}</p>
+      <br><br>
+      <p>THANK YOU FOR PLAYING!</p>
+      <p>DEVELOPED FOR OPERATING SYSTEM EXPLORERS</p>
+      <p>FINAL CASH BALANCE: $${totalCash}</p>
+    `;
+
+    document.getElementById('star-wars-credits').style.display = 'block';
+  }
+
+  function closeCredits() {
+    document.getElementById('star-wars-credits').style.display = 'none';
+    returnToMenu();
+  }
+
+  function returnToMenu() {
+    if (document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+  }
+</script>
+</body>
+</html>
