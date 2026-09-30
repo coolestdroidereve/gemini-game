@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OS FEVER 3D: OPEN WORLD SISYPHUS KERNEL</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    font-family: 'Press Start 2P', monospace;
+    touch-action: manipulation;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #050508;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    width: 960px;
+    height: 680px;
+    background: #000;
+    border: 6px solid #d90429;
+    box-shadow: 0px 0px 20px #d90429;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .crt-lines {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  /* 3D Viewport */
+  #viewport-3d {
+    width: 100%;
+    height: 440px;
+    position: relative;
+    background: #000;
+  }
+  canvas#doomCanvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* Mini-Map Radar */
+  #radar-box {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 110px;
+    height: 110px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid #00ff66;
+    z-index: 15;
+    border-radius: 4px;
+  }
+  canvas#radarCanvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* On-Screen D-PAD Controls */
+  #virtual-dpad {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: grid;
+    grid-template-columns: repeat(3, 40px);
+    grid-template-rows: repeat(3, 40px);
+    gap: 4px;
+    z-index: 18;
+  }
+  .dpad-btn {
+    background: rgba(217, 4, 41, 0.7);
+    border: 2px solid #fff;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .dpad-btn:active { background: #ff2a4b; }
+
+  #btn-shoot {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 90px;
+    height: 80px;
+    background: #00ff66;
+    color: #000;
+    border: 3px solid #fff;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 18;
+    box-shadow: 2px 2px 0px #000;
+  }
+
+  /* Weapon & Crosshair */
+  #weapon {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 180px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    z-index: 15;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: #00ff66;
+  }
+  #crosshair::before { top: 7px; left: 0; width: 16px; height: 2px; }
+  #crosshair::after { top: 0; left: 7px; width: 2px; height: 16px; }
+
+  /* Camera Mode Indicator */
+  #cam-mode-tag {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.8);
+    border: 1px solid #00ff66;
+    color: #00ff66;
+    padding: 4px 8px;
+    font-size: 8px;
+    z-index: 15;
+  }
+
+  /* HUD */
+  #doom-hud {
+    height: 240px;
+    background: #111116;
+    border-top: 6px solid #333;
+    display: flex;
+    padding: 10px;
+    gap: 10px;
+    z-index: 25;
+  }
+
+  .hud-block {
+    background: #1b1b22;
+    border: 4px solid #444;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  #sisyphus-block { width: 210px; }
+  canvas#sisyphusMiniCanvas {
+    width: 100%;
+    height: 100px;
+    background: #2a1122;
+    border: 2px solid #000;
+  }
+
+  #yowy-face-block {
+    width: 140px;
+    align-items: center;
+    justify-content: center;
+    background: #200000;
+    border-color: #800000;
+  }
+  #yowy-face {
+    width: 60px;
+    height: 60px;
+    background: #ffd500;
+    border-radius: 50%;
+    border: 4px solid #000;
+    position: relative;
+  }
+
+  #ticket-block { flex: 1; }
+  .pipeline-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .pill {
+    background: #333;
+    border: 2px solid #666;
+    padding: 4px 6px;
+    font-size: 8px;
+    color: #aaa;
+  }
+  .pill.active {
+    background: #ff0055; color: #fff; border-color: #fff;
+    animation: blink 0.5s infinite alternate;
+  }
+  .pill.done { background: #00b4d8; color: #fff; text-decoration: line-through; }
+  @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+  .hud-shop-btn {
+    background: #ffbd2e;
+    color: #000;
+    border: 2px solid #fff;
+    padding: 6px;
+    font-size: 9px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 6px;
+    text-align: center;
+  }
+  .hud-shop-btn:hover { background: #ffe169; }
+
+  /* Overlay Screens & Modals */
+  .screen-overlay {
+    position: absolute; inset: 0; background: rgba(10, 0, 0, 0.95);
+    z-index: 100; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; padding: 20px; text-align: center;
+  }
+  .title-logo { font-size: 28px; color: #d90429; text-shadow: 4px 4px 0px #000; margin-bottom: 10px; }
+  .btn-doom {
+    background: #d90429; color: #fff; border: 4px solid #fff;
+    padding: 10px 18px; font-size: 10px; cursor: pointer; margin: 6px;
+  }
+
+  /* Trail Shop Grid Modal */
+  .modal-popup {
+    position: absolute; inset: 15px; background: #0a101d; border: 4px solid #00b4d8;
+    z-index: 110; display: none; flex-direction: column; padding: 15px;
+  }
+  .trail-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    overflow-y: auto; margin-top: 10px; flex: 1; padding: 5px;
+  }
+  .trail-card {
+    background: #141f36; border: 3px solid #334e68; padding: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    cursor: pointer; border-radius: 4px;
+  }
+  .trail-card.selected { border-color: #00ff66; box-shadow: 0 0 10px #00ff66; }
+  .trail-card.equipped { border-color: #ffbd2e; }
+  .trail-preview {
+    width: 100%; height: 35px; border-radius: 4px; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* PPT Concepts Modal */
+  .ppt-modal {
+    position: absolute; inset: 15px; background: #111118; border: 4px solid #ffbd2e;
+    z-index: 115; display: none; flex-direction: column; padding: 20px; text-align: left;
+    overflow-y: auto;
+  }
+  .ppt-concept-box {
+    background: #1d1d26; border-left: 4px solid #d90429; padding: 10px; margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div class="crt-lines"></div>
+
+  <!-- 3D Open World Viewport -->
+  <div id="viewport-3d">
+    <canvas id="doomCanvas" width="640" height="360"></canvas>
+    
+    <!-- Camera Mode -->
+    <div id="cam-mode-tag">CAM: 1ST PERSON [PRESS '5' TO SWITCH]</div>
+
+    <!-- Mini Radar -->
+    <div id="radar-box">
+      <canvas id="radarCanvas" width="110" height="110"></canvas>
+    </div>
+
+    <!-- Virtual D-PAD Controls -->
+    <div id="virtual-dpad">
+      <div></div>
+      <div class="dpad-btn" id="btn-up">▲</div>
+      <div></div>
+      <div class="dpad-btn" id="btn-left">◀</div>
+      <div class="dpad-btn" id="btn-down">▼</div>
+      <div class="dpad-btn" id="btn-right">▶</div>
+    </div>
+
+    <div id="btn-shoot">DISRUPT [FIRE]</div>
+
+    <div id="crosshair"></div>
+    <svg id="weapon" viewBox="0 0 100 100">
+      <path d="M35,100 L45,50 L55,50 L65,100 Z" fill="#444" stroke="#000" stroke-width="2"/>
+      <rect x="46" y="30" width="8" height="25" fill="#222" stroke="#000" stroke-width="2"/>
+      <circle id="muzzle-flash" cx="50" cy="25" r="15" fill="#00ff66" opacity="0"/>
+    </svg>
+  </div>
+
+  <!-- DOOM HUD -->
+  <div id="doom-hud">
+    <div class="hud-block" id="sisyphus-block">
+      <div style="font-size: 8px; color: #ffbd2e;">SISYPHUS SLOPE</div>
+      <canvas id="sisyphusMiniCanvas" width="200" height="100"></canvas>
+      <div style="font-size: 8px; text-align: center;" id="hud-slope-pct">SLOPE: 50%</div>
+    </div>
+
+    <div class="hud-block" id="yowy-face-block">
+      <div style="font-size: 8px; color: #fff; margin-bottom: 4px;">KERNEL YOWY</div>
+      <div id="yowy-face">
+        <div style="position: absolute; top: 16px; left: 12px; display: flex; gap: 12px;">
+          <div style="width: 8px; height: 8px; background: #000; border-radius: 50%;"></div>
+          <div style="width: 8px; height: 8px; background: #000; border-radius: 50%;"></div>
+        </div>
+        <div style="position: absolute; bottom: 12px; left: 16px; width: 20px; height: 8px; background: #d90429; border-radius: 0 0 8px 8px;"></div>
+      </div>
+      <div style="font-size: 8px; color: #00ff66; margin-top: 6px;" id="hud-health">HEALTH: OK</div>
+    </div>
+
+    <div class="hud-block" id="ticket-block">
+      <div style="display: flex; justify-content: space-between; font-size: 9px;">
+        <span id="hud-mode">OPEN WORLD</span>
+        <span id="hud-score" style="color: #00ff66;">CASH: $0</span>
+      </div>
+      <div style="font-size: 9px; color: #ffbd2e; margin: 4px 0;" id="ticket-title">REQUEST: Open Web Browser</div>
+      <div style="font-size: 7px; color: #aaa;">SEARCH MEMORY FOR ANOMALY:</div>
+      <div class="pipeline-pills" id="pipeline-pills"></div>
+      
+      <div style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+        <div class="hud-shop-btn" onclick="toggleShop(true)">🛍️ TRAIL SHOP</div>
+        <div style="font-size: 7px; color: #888;">Press <b>[5]</b> for 3rd Person View</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Screen -->
+  <div class="screen-overlay" id="start-screen">
+    <div class="title-logo">OS FEVER 3D 🪨</div>
+    <div style="font-size: 10px; color: #aaa; margin-bottom: 15px;">OPEN WORLD MEMORY SEARCH</div>
+    <p style="font-size: 9px; max-width: 600px; line-height: 1.8; color: #ddd; margin-bottom: 20px;">
+      Navigate the 24x24 OS memory space! Use radar to locate module anomalies, buy walking trails with earned cash, and switch to 3rd person with key '5'[cite: 1]!
+    </p>
+    <div>
+      <button class="btn-doom" onclick="startGame()">ENTER OPEN WORLD</button>
+      <button class="btn-doom" style="background:#00b4d8;" onclick="togglePPT(true)">📖 SYSTEM PPT CONCEPTS</button>
+    </div>
+  </div>
+
+  <!-- Trail Shop Modal -->
+  <div class="modal-popup" id="trail-shop-modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00b4d8; padding-bottom: 8px;">
+      <span style="font-size: 12px; color: #00ff66;">TRAIL SHOP [FEVER BOUTIQUE]</span>
+      <span style="font-size: 10px; color: #ffbd2e;" id="shop-cash-display">CASH: $0</span>
+    </div>
+    <div class="trail-grid" id="trail-grid-container"></div>
+    <button class="btn-doom" style="margin-top: 10px;" onclick="toggleShop(false)">CLOSE SHOP</button>
+  </div>
+
+  <!-- PPT Concepts Modal -->
+  <div class="ppt-modal" id="ppt-modal">
+    <div style="font-size: 14px; color: #ffbd2e; margin-bottom: 15px;">📖 CORE OS FEVER KEY CONCEPTS</div>
+    
+    <div class="ppt-concept-box">
+      <div style="font-size: 10px; color: #00ff66; margin-bottom: 6px;">1. Kernel Request Pipelines</div>
+      <div style="font-size: 8px; line-height: 1.6; color: #ccc;">
+        Operating Systems handle user actions (like opening a web browser or saving files) through sequence chains of subsystem requests[cite: 1].
+      </div>
+    </div>
+
+    <div class="ppt-concept-box">
+      <div style="font-size: 10px; color: #00ff66; margin-bottom: 6px;">2. Sisyphus Memory Decay</div>
+      <div style="font-size: 8px; line-height: 1.6; color: #ccc;">
+        Unresolved anomalies cause process backlog[cite: 1]! The Sisyphus slope represents system stability—if you shoot the wrong module or delay too long, Yowy slips down the hill[cite: 1]!
+      </div>
+    </div>
+
+    <div class="ppt-concept-box">
+      <div style="font-size: 10px; color: #00ff66; margin-bottom: 6px;">3. OS Subsystem Modules</div>
+      <div style="font-size: 8px; line-height: 1.6; color: #ccc;">
+        • <b>MEM</b>: Physical Memory Allocation<br>
+        • <b>SEC</b>: Security & Credentials<br>
+        • <b>NET</b>: Network Socket Handshake<br>
+        • <b>SCHED</b>: CPU Process Scheduling
+      </div>
+    </div>
+
+    <button class="btn-doom" style="align-self: center;" onclick="togglePPT(false)">BACK TO MENU</button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="screen-overlay" id="gameover-screen" style="display: none;">
+    <div class="title-logo" style="color: #ff0055;">KERNEL PANIC 💥</div>
+    <p style="font-size: 10px; color: #aaa; margin-bottom: 20px;">
+      The boulder slipped and crushed system memory[cite: 1]!
+    </p>
+    <div style="font-size: 14px; color: #00ff66; margin-bottom: 20px;" id="final-cash">TOTAL CASH: $0</div>
+    <button class="btn-doom" onclick="returnToMenu()">TRY AGAIN</button>
+  </div>
+</div>
+
+<script>
+  // Trails based on user's image list
+  const SHOP_TRAILS = [
+    { id: 'blue', name: 'BLUE', price: 0, color: '#0077ff', gradient: 'linear-gradient(90deg, #0077ff, #00d4ff)' },
+    { id: 'green', name: 'GREEN', price: 100, color: '#00ff00', gradient: 'linear-gradient(90deg, #00ff00, #b5ff00)' },
+    { id: 'white', name: 'WHITE', price: 200, color: '#ffffff', gradient: 'linear-gradient(90deg, #ffffff, #aaaaaa)' },
+    { id: 'red', name: 'RED', price: 300, color: '#ff0033', gradient: 'linear-gradient(90deg, #ff0033, #ff5e00)' },
+    { id: 'orange', name: 'ORANGE', price: 400, color: '#ff8800', gradient: 'linear-gradient(90deg, #ff8800, #ffbb00)' },
+    { id: 'pink', name: 'PINK', price: 500, color: '#ff00aa', gradient: 'linear-gradient(90deg, #ff00aa, #ff88d1)' },
+    { id: 'purple', name: 'PURPLE', price: 600, color: '#a000ff', gradient: 'linear-gradient(90deg, #a000ff, #d400ff)' },
+    { id: 'fire', name: 'FIRE GRADIENT', price: 800, color: '#ff3300', gradient: 'linear-gradient(90deg, #ffcc00, #ff0000)' },
+    { id: 'cyan', name: 'CYAN GRADIENT', price: 1000, color: '#00f5d4', gradient: 'linear-gradient(90deg, #00f5d4, #0077ff)' },
+    { id: 'rainbow', name: 'RAINBOW', price: 1500, color: '#ff0000', gradient: 'linear-gradient(90deg, red, yellow, green, cyan, blue, violet)' }
+  ];
+
+  const OS_MODULES = [
+    { code: 'MEM', color: '#3a86ff' }, { code: 'ACC', color: '#ff006e' },
+    { code: 'FS', color: '#8338ec' }, { code: 'DEV', color: '#fb5607' },
+    { code: 'SEC', color: '#ffbe0b' }, { code: 'SCHED', color: '#00f5d4' },
+    { code: 'GUI', color: '#7b2cbf' }, { code: 'VIRT', color: '#00bbf9' },
+    { code: 'NET', color: '#f15bb5' }
+  ];
+
+  const PIPELINE_TEMPLATES = [
+    { title: "User opens Web Browser", pipeline: ["SEC", "MEM", "SCHED", "NET", "GUI"] },
+    { title: "Print Document Request", pipeline: ["FS", "SEC", "DEV", "SCHED"] },
+    { title: "Save Photo File to Disk", pipeline: ["GUI", "SEC", "FS", "MEM"] },
+    { title: "Start Virtual Machine", pipeline: ["VIRT", "MEM", "NET", "ACC"] }
+  ];
+
+  const MAP_SIZE = 24;
+  const MAP = [
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,0,1,0,1,1,1,1,1,1,0,0,1,0,1,1,1,1,0,1,
+    1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,
+    1,0,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,0,1,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,1,1,0,1,0,1,1,1,1,0,1,1,1,1,1,1,0,0,1,0,1,1,1,
+    1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,0,1,0,1,1,0,0,1,1,1,0,1,0,1,1,1,1,0,1,
+    1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,
+    1,0,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1,
+    1,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1,0,1,
+    1,0,1,1,1,1,1,0,1,0,1,0,1,0,1,1,1,1,1,1,0,1,0,1,
+    1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1,
+    1,1,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,
+    1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,0,1,
+    1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,
+    1,0,1,1,1,1,1,0,1,1,1,1,0,0,1,1,1,0,1,0,1,1,1,1,
+    1,0,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,
+    1,0,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  ];
+
+  // Game state
+  let px = 11.5, py = 11.5;
+  let dirX = -1, dirY = 0;
+  let planeX = 0, planeY = 0.66;
+
+  let isThirdPerson = false;
+  let totalCash = 500; // Start with cash for trails
+  let equippedTrail = 'blue';
+  let ownedTrails = ['blue'];
+  let trailParticles = [];
+
+  let slopeProgress = 50;
+  let activeTicket = null;
+  let currentStepIdx = 0;
+  let isRunning = false;
+  let keys = {};
+  let dpad = { up: false, down: false, left: false, right: false };
+  let sprites = [];
+
+  const canvas3D = document.getElementById('doomCanvas');
+  const ctx3D = canvas3D.getContext('2d');
+  const radarCanvas = document.getElementById('radarCanvas');
+  const radarCtx = radarCanvas.getContext('2d');
+  const miniCanvas = document.getElementById('sisyphusMiniCanvas');
+  const miniCtx = miniCanvas.getContext('2d');
+
+  // Key Event Listeners
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    keys[e.code] = true;
+    if (e.key === '5') {
+      isThirdPerson = !isThirdPerson;
+      document.getElementById('weapon').style.display = isThirdPerson ? 'none' : 'block';
+      document.getElementById('cam-mode-tag').innerText = isThirdPerson ? "CAM: 3RD PERSON [PRESS '5' TO SWITCH]" : "CAM: 1ST PERSON [PRESS '5' TO SWITCH]";
+    }
+  });
+  window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+    keys[e.code] = false;
+  });
+
+  // D-Pad Touch Bindings
+  const bindDPad = (id, key) => {
+    let btn = document.getElementById(id);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); dpad[key] = true; });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); dpad[key] = false; });
+    btn.addEventListener('mousedown', () => dpad[key] = true);
+    btn.addEventListener('mouseup', () => dpad[key] = false);
+  };
+  bindDPad('btn-up', 'up');
+  bindDPad('btn-down', 'down');
+  bindDPad('btn-left', 'left');
+  bindDPad('btn-right', 'right');
+
+  document.getElementById('btn-shoot').addEventListener('click', shoot);
+
+  function rotatePlayer(rotSpeed) {
+    let oldDirX = dirX;
+    dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+    dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+    let oldPlaneX = planeX;
+    planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+    planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+  }
+
+  function startGame() {
+    slopeProgress = 50;
+    px = 11.5; py = 11.5;
+    dirX = -1; dirY = 0;
+    planeX = 0; planeY = 0.66;
+    isRunning = true;
+
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+
+    spawnMapEnemies();
+    spawnNewTicket();
+    renderShopGrid();
+  }
+
+  function spawnMapEnemies() {
+    sprites = [];
+    let count = 0;
+    while (count < 18) {
+      let rx = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+      let ry = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+      if (MAP[ry * MAP_SIZE + rx] === 0) {
+        let mod = OS_MODULES[count % OS_MODULES.length];
+        sprites.push({ x: rx + 0.5, y: ry + 0.5, code: mod.code, color: mod.color });
+        count++;
+      }
+    }
+  }
+
+  function spawnNewTicket() {
+    let t = PIPELINE_TEMPLATES[Math.floor(Math.random() * PIPELINE_TEMPLATES.length)];
+    activeTicket = { title: t.title, pipeline: [...t.pipeline], reward: 250 };
+    currentStepIdx = 0;
+    updateUI();
+  }
+
+  function shoot() {
+    if (!isRunning) return;
+
+    let flash = document.getElementById('muzzle-flash');
+    flash.setAttribute('opacity', '1');
+    setTimeout(() => flash.setAttribute('opacity', '0'), 80);
+
+    let hitSprite = null, minDistance = 999;
+    let invDet = 1.0 / (planeX * dirY - dirX * planeY);
+
+    sprites.forEach(sprite => {
+      let spriteX = sprite.x - px, spriteY = sprite.y - py;
+      let transformX = invDet * (dirY * spriteX - dirX * spriteY);
+      let transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+      if (transformY > 0) {
+        let spriteScreenX = Math.floor((640 / 2) * (1 + transformX / transformY));
+        if (Math.abs(spriteScreenX - 320) < 60 && transformY < minDistance) {
+          minDistance = transformY;
+          hitSprite = sprite;
+        }
+      }
+    });
+
+    if (hitSprite) {
+      let expectedCode = activeTicket.pipeline[currentStepIdx];
+      if (hitSprite.code === expectedCode) {
+        currentStepIdx++;
+        slopeProgress = Math.min(100, slopeProgress + 10);
+        if (currentStepIdx >= activeTicket.pipeline.length) {
+          totalCash += activeTicket.reward;
+          spawnNewTicket();
+        } else {
+          updateUI();
+        }
+      } else {
+        slopeProgress -= 15;
+      }
+    }
+  }
+
+  let lastFrameTime = performance.now();
+  function gameLoop(now) {
+    let dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+
+    if (isRunning) {
+      updateMovement(dt);
+      slopeProgress -= dt * 2.5;
+      if (slopeProgress <= 0) {
+        slopeProgress = 0;
+        isRunning = false;
+        document.getElementById('gameover-screen').style.display = 'flex';
+        document.getElementById('final-cash').innerText = `TOTAL CASH: $${totalCash}`;
+      }
+      document.getElementById('hud-slope-pct').innerText = `SLOPE: ${Math.floor(slopeProgress)}%`;
+    }
+
+    render3D();
+    renderRadar();
+    renderSisyphusMini();
+    requestAnimationFrame(gameLoop);
+  }
+  requestAnimationFrame(gameLoop);
+
+  function updateMovement(dt) {
+    let moveSpeed = dt * 4.0;
+    let rotSpeed = dt * 2.5;
+
+    let fwd = keys['w'] || keys['ArrowUp'] || dpad.up;
+    let bwd = keys['s'] || keys['ArrowDown'] || dpad.down;
+    let turnL = keys['a'] || keys['ArrowLeft'] || dpad.left;
+    let turnR = keys['d'] || keys['ArrowRight'] || dpad.right;
+
+    if (turnL) rotatePlayer(rotSpeed);
+    if (turnR) rotatePlayer(-rotSpeed);
+
+    let moveX = 0, moveY = 0;
+    if (fwd) { moveX += dirX * moveSpeed; moveY += dirY * moveSpeed; }
+    if (bwd) { moveX -= dirX * moveSpeed; moveY -= dirY * moveSpeed; }
+
+    let buf = 0.25;
+    if (moveX !== 0 || moveY !== 0) {
+      if (MAP[Math.floor(py) * MAP_SIZE + Math.floor(px + moveX + Math.sign(moveX)*buf)] === 0) px += moveX;
+      if (MAP[Math.floor(py + moveY + Math.sign(moveY)*buf) * MAP_SIZE + Math.floor(px)] === 0) py += moveY;
+
+      // Spawn Trail Particles as player moves
+      if (Math.random() < 0.6) {
+        let trailObj = SHOP_TRAILS.find(t => t.id === equippedTrail);
+        trailParticles.push({
+          x: px, y: py,
+          color: trailObj ? trailObj.color : '#0077ff',
+          life: 1.0
+        });
+      }
+    }
+
+    // Decay trail particles
+    for (let i = trailParticles.length - 1; i >= 0; i--) {
+      trailParticles[i].life -= dt * 1.5;
+      if (trailParticles[i].life <= 0) trailParticles.splice(i, 1);
+    }
+  }
+
+  function render3D() {
+    let w = canvas3D.width, h = canvas3D.height;
+    ctx3D.fillStyle = '#111'; ctx3D.fillRect(0, 0, w, h / 2);
+    ctx3D.fillStyle = '#222'; ctx3D.fillRect(0, h / 2, w, h / 2);
+
+    let camPx = px, camPy = py;
+    if (isThirdPerson) {
+      camPx = px - dirX * 1.5;
+      camPy = py - dirY * 1.5;
+    }
+
+    let zBuffer = new Array(w);
+    for (let x = 0; x < w; x++) {
+      let cameraX = 2 * x / w - 1;
+      let rayDirX = dirX + planeX * cameraX, rayDirY = dirY + planeY * cameraX;
+      let mapX = Math.floor(camPx), mapY = Math.floor(camPy);
+
+      let deltaDistX = Math.abs(1 / rayDirX), deltaDistY = Math.abs(1 / rayDirY);
+      let stepX = rayDirX < 0 ? -1 : 1, sideDistX = rayDirX < 0 ? (camPx - mapX) * deltaDistX : (mapX + 1 - camPx) * deltaDistX;
+      let stepY = rayDirY < 0 ? -1 : 1, sideDistY = rayDirY < 0 ? (camPy - mapY) * deltaDistY : (mapY + 1 - camPy) * deltaDistY;
+
+      let hit = 0, side = 0;
+      while (hit === 0) {
+        if (sideDistX < sideDistY) { sideDistX += deltaDistX; mapX += stepX; side = 0; }
+        else { sideDistY += deltaDistY; mapY += stepY; side = 1; }
+        if (MAP[mapY * MAP_SIZE + mapX] > 0) hit = 1;
+      }
+
+      let perpWallDist = side === 0 ? (mapX - camPx + (1 - stepX) / 2) / rayDirX : (mapY - camPy + (1 - stepY) / 2) / rayDirY;
+      zBuffer[x] = perpWallDist;
+
+      let lineHeight = Math.floor(h / perpWallDist);
+      let drawStart = -lineHeight / 2 + h / 2, drawEnd = lineHeight / 2 + h / 2;
+
+      let colorVal = Math.max(0, 200 - perpWallDist * 12);
+      ctx3D.fillStyle = side === 1 ? `rgb(${colorVal*0.5},0,0)` : `rgb(${colorVal},0,0)`;
+      ctx3D.fillRect(x, drawStart, 1, drawEnd - drawStart);
+    }
+
+    let invDet = 1.0 / (planeX * dirY - dirX * planeY);
+
+    // Render Trail Floor Particles
+    trailParticles.forEach(p => {
+      let pX = p.x - camPx, pY = p.y - camPy;
+      let transformX = invDet * (dirY * pX - dirX * pY);
+      let transformY = invDet * (-planeY * pX + planeX * pY);
+
+      if (transformY > 0) {
+        let pScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let pSize = Math.max(2, Math.floor(20 / transformY));
+        let pScreenY = Math.floor(h / 2 + (h / 2) / transformY);
+
+        if (pScreenX > 0 && pScreenX < w && transformY < zBuffer[pScreenX]) {
+          ctx3D.fillStyle = p.color;
+          ctx3D.globalAlpha = p.life;
+          ctx3D.fillRect(pScreenX - pSize/2, pScreenY, pSize, pSize);
+          ctx3D.globalAlpha = 1.0;
+        }
+      }
+    });
+
+    // Render Enemies
+    sprites.forEach(sprite => {
+      let spriteX = sprite.x - camPx, spriteY = sprite.y - camPy;
+      let transformX = invDet * (dirY * spriteX - dirX * spriteY);
+      let transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+      if (transformY > 0) {
+        let spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let spriteHeight = Math.abs(Math.floor(h / transformY));
+        let drawStartY = -spriteHeight / 2 + h / 2;
+        let spriteWidth = spriteHeight;
+        let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
+
+        if (drawStartX < w && drawStartX + spriteWidth > 0 && transformY < zBuffer[Math.floor(spriteScreenX)]) {
+          ctx3D.fillStyle = sprite.color;
+          ctx3D.fillRect(drawStartX, drawStartY, spriteWidth, spriteHeight);
+          ctx3D.fillStyle = '#fff';
+          ctx3D.font = '10px "Press Start 2P"';
+          ctx3D.fillText(sprite.code, drawStartX, drawStartY - 4);
+        }
+      }
+    });
+
+    // Render 3rd Person Player Avatar
+    if (isThirdPerson) {
+      let playerX = px - camPx, playerY = py - camPy;
+      let transformX = invDet * (dirY * playerX - dirX * playerY);
+      let transformY = invDet * (-planeY * playerX + planeX * playerY);
+
+      if (transformY > 0) {
+        let pScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+        let pHeight = Math.abs(Math.floor(h / transformY));
+        let pWidth = pHeight * 0.6;
+        let pStartY = -pHeight / 2 + h / 2 + pHeight * 0.2;
+
+        ctx3D.fillStyle = '#ffd500';
+        ctx3D.fillRect(pScreenX - pWidth/2, pStartY, pWidth, pHeight);
+        ctx3D.fillStyle = '#0077ff';
+        ctx3D.fillRect(pScreenX - pWidth/2, pStartY + pHeight*0.4, pWidth, pHeight*0.6);
+      }
+    }
+  }
+
+  function renderRadar() {
+    radarCtx.clearRect(0, 0, 110, 110);
+    let scale = 110 / MAP_SIZE;
+
+    radarCtx.fillStyle = '#224422';
+    for (let y = 0; y < MAP_SIZE; y++) {
+      for (let x = 0; x < MAP_SIZE; x++) {
+        if (MAP[y * MAP_SIZE + x] > 0) radarCtx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+
+    sprites.forEach(s => {
+      radarCtx.fillStyle = s.color;
+      radarCtx.fillRect(s.x * scale - 2, s.y * scale - 2, 4, 4);
+    });
+
+    radarCtx.fillStyle = '#00ff66';
+    radarCtx.beginPath();
+    radarCtx.arc(px * scale, py * scale, 3, 0, Math.PI * 2);
+    radarCtx.fill();
+  }
+
+  function renderSisyphusMini() {
+    miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+    miniCtx.beginPath();
+    miniCtx.moveTo(0, miniCanvas.height);
+    miniCtx.lineTo(miniCanvas.width, 20);
+    miniCtx.lineTo(miniCanvas.width, miniCanvas.height);
+    miniCtx.fillStyle = '#4a154b'; miniCtx.fill();
+
+    let cx = 20 + (slopeProgress / 100) * (miniCanvas.width - 50);
+    let cy = miniCanvas.height - ((cx / miniCanvas.width) * (miniCanvas.height - 20));
+
+    miniCtx.beginPath(); miniCtx.arc(cx + 15, cy - 15, 15, 0, Math.PI * 2);
+    miniCtx.fillStyle = '#8d99ae'; miniCtx.fill();
+
+    miniCtx.beginPath(); miniCtx.arc(cx - 5, cy - 8, 8, 0, Math.PI * 2);
+    miniCtx.fillStyle = '#ffd500'; miniCtx.fill();
+  }
+
+  function updateUI() {
+    document.getElementById('hud-score').innerText = `CASH: $${totalCash}`;
+    document.getElementById('ticket-title').innerText = activeTicket.title;
+
+    let pContainer = document.getElementById('pipeline-pills');
+    pContainer.innerHTML = '';
+    activeTicket.pipeline.forEach((code, idx) => {
+      let div = document.createElement('div');
+      div.className = 'pill';
+      if (idx < currentStepIdx) div.classList.add('done');
+      if (idx === currentStepIdx) div.classList.add('active');
+      div.innerText = `${idx + 1}.${code}`;
+      pContainer.appendChild(div);
+    });
+  }
+
+  // Shop Functions
+  function toggleShop(show) {
+    document.getElementById('trail-shop-modal').style.display = show ? 'flex' : 'none';
+    if (show) {
+      document.getElementById('shop-cash-display').innerText = `CASH: $${totalCash}`;
+      renderShopGrid();
+    }
+  }
+
+  function renderShopGrid() {
+    let grid = document.getElementById('trail-grid-container');
+    grid.innerHTML = '';
+
+    SHOP_TRAILS.forEach(trail => {
+      let owned = ownedTrails.includes(trail.id);
+      let equipped = equippedTrail === trail.id;
+
+      let card = document.createElement('div');
+      card.className = `trail-card ${equipped ? 'equipped' : ''}`;
+      card.innerHTML = `
+        <div class="trail-preview" style="background: ${trail.gradient};">
+          <span style="font-size:7px; color:#000; font-weight:bold;">${trail.name}</span>
+        </div>
+        <div style="font-size: 7px; margin-bottom: 4px; color: #ffbd2e;">
+          ${owned ? (equipped ? 'EQUIPPED' : 'OWNED') : `$${trail.price}`}
+        </div>
+        <button class="btn-doom" style="padding: 4px 6px; font-size: 6px; margin:0;" onclick="buyOrEquipTrail('${trail.id}')">
+          ${owned ? (equipped ? 'IN USE' : 'EQUIP') : 'BUY'}
+        </button>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  function buyOrEquipTrail(trailId) {
+    let trail = SHOP_TRAILS.find(t => t.id === trailId);
+    if (ownedTrails.includes(trailId)) {
+      equippedTrail = trailId;
+    } else if (totalCash >= trail.price) {
+      totalCash -= trail.price;
+      ownedTrails.push(trailId);
+      equippedTrail = trailId;
+    }
+    updateUI();
+    document.getElementById('shop-cash-display').innerText = `CASH: $${totalCash}`;
+    renderShopGrid();
+  }
+
+  // PPT Modal
+  function togglePPT(show) {
+    document.getElementById('ppt-modal').style.display = show ? 'flex' : 'none';
+  }
+
+  function returnToMenu() {
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+  }
+</script>
+</body>
+</html>
